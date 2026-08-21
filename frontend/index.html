@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Загрузка документов</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="card">
+    <h1>Загрузка Word-документов</h1>
+    <p class="subtitle">Выберите два файла в формате .docx</p>
+
+    <form id="upload-form">
+      <div class="dropzone" id="dropzone-1" data-target="file-1">
+        <input type="file" id="file-1" name="document1" accept=".docx" hidden />
+        <span class="dz-label" id="label-1">Документ №1 — выбрать файл</span>
+      </div>
+
+      <div class="dropzone" id="dropzone-2" data-target="file-2">
+        <input type="file" id="file-2" name="document2" accept=".docx" hidden />
+        <span class="dz-label" id="label-2">Документ №2 — выбрать файл</span>
+      </div>
+
+      <button type="submit" id="submit-btn" disabled>Загрузить</button>
+    </form>
+
+    <div id="status" class="status" role="status"></div>
+  </main>
+
+  <script src="/static/script.js"></script>
+</body>
+</html>
