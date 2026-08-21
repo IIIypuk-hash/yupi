@@ -3,31 +3,63 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Загрузка документов</title>
+  <title>Space Fighter</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-  <main class="card">
-    <h1>Загрузка Word-документов</h1>
-    <p class="subtitle">Выберите два файла в формате .docx</p>
+  <div id="game-wrap">
+    <canvas id="game" width="900" height="640"></canvas>
 
-    <form id="upload-form">
-      <div class="dropzone" id="dropzone-1" data-target="file-1">
-        <input type="file" id="file-1" name="document1" accept=".docx" hidden />
-        <span class="dz-label" id="label-1">Документ №1 — выбрать файл</span>
+    <!-- HUD -->
+    <div id="hud">
+      <div class="hud-row">
+        <div class="bar-label">HP</div>
+        <div class="bar hp-bar"><div id="hp-fill" class="bar-fill"></div></div>
       </div>
-
-      <div class="dropzone" id="dropzone-2" data-target="file-2">
-        <input type="file" id="file-2" name="document2" accept=".docx" hidden />
-        <span class="dz-label" id="label-2">Документ №2 — выбрать файл</span>
+      <div class="hud-row" id="boss-hud" hidden>
+        <div class="bar-label boss-label">БОСС</div>
+        <div class="bar boss-bar"><div id="boss-fill" class="bar-fill"></div></div>
       </div>
+      <div class="hud-right">
+        <div>Счёт: <span id="score">0</span></div>
+        <div>Волна: <span id="wave">1</span></div>
+        <div>Оружие: <span id="weapon-lvl">1</span></div>
+      </div>
+    </div>
 
-      <button type="submit" id="submit-btn" disabled>Загрузить</button>
-    </form>
+    <!-- Стартовый экран -->
+    <div id="start-screen" class="overlay">
+      <h1>SPACE FIGHTER</h1>
+      <p>Уничтожайте вражеские корабли, собирайте усиления и одолейте босса в конце волны.</p>
+      <div class="controls-hint">
+        <div><b>Стрелки / WASD</b> — движение</div>
+        <div><b>Пробел</b> — стрельба</div>
+        <div><b>P</b> — пауза</div>
+      </div>
+      <button id="start-btn" class="btn">Начать игру</button>
+    </div>
 
-    <div id="status" class="status" role="status"></div>
-  </main>
+    <!-- Пауза -->
+    <div id="pause-screen" class="overlay" hidden>
+      <h1>ПАУЗА</h1>
+      <button id="resume-btn" class="btn">Продолжить</button>
+    </div>
 
-  <script src="/static/script.js"></script>
+    <!-- Game over -->
+    <div id="gameover-screen" class="overlay" hidden>
+      <h1>КОРАБЛЬ УНИЧТОЖЕН</h1>
+      <p>Счёт: <span id="final-score">0</span></p>
+      <button id="restart-btn" class="btn">Заново</button>
+    </div>
+
+    <!-- Победа -->
+    <div id="win-screen" class="overlay" hidden>
+      <h1>БОСС ПОВЕРЖЕН!</h1>
+      <p>Счёт: <span id="win-score">0</span></p>
+      <button id="next-level-btn" class="btn">Следующая волна</button>
+    </div>
+  </div>
+
+  <script src="/static/game.js"></script>
 </body>
 </html>
