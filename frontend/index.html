@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Space Fighter</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
@@ -36,14 +38,14 @@
     <div id="start-screen" class="overlay">
       <h1>SPACE FIGHTER</h1>
       <p>Уничтожайте врагов (среди них — щитоносцы и камикадзе), собирайте оружие и дронов-спутников, стреляйте по астероидам ради бонусов и одолейте босса каждую 5-ю волну.
-      У каждого босса — своя сверхатака с предупреждением и фаза ярости на половине HP, а у одного из них лазеры пробивают карту насквозь. Шкала УЛЬТ копится сама и даёт мощный суперудар. Убивайте без урона — множитель очков растёт.</p>
+      У каждого босса — своя сверхатака с предупреждением и фаза ярости на половине HP: у одного лазеры пробивают карту насквозь, а имперский звёздный разрушитель ловит вас тяговым лучом и обстреливает орбитальными турболазерами. Шкала УЛЬТ копится сама и даёт мощный суперудар. Убивайте без урона — множитель очков растёт.</p>
       <p id="highscore-line">Рекорд: <span id="highscore-value">0</span></p>
       <div class="controls-hint">
         <div><b>Стрелки / WASD</b> — движение</div>
         <div><b>Пробел</b> — стрельба</div>
         <div><b>1-5</b> — пушка / лазер / ракеты / молния / мины (нужно сначала подобрать)</div>
         <div><b>E</b> — суперудар, когда шкала УЛЬТ полна</div>
-        <div><b>Shift</b> — рывок с неуязвимостью (есть перезарядка)</div>
+        <div><b>Shift</b> — рывок с неуязвимостью (разрывает тяговый луч)</div>
         <div><b>P</b> — пауза, <b>M</b> — звук вкл/выкл</div>
       </div>
       <button id="start-btn" class="btn">Начать игру</button>

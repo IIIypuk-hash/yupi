@@ -409,6 +409,7 @@ function newPlayer() {
     dashDirX: 0,
     dashDirY: -1,
     drones: [],
+    tractorTimer: 0,
   };
 }
 
@@ -546,7 +547,7 @@ function spawnEnemy() {
   enemiesAlive++;
 }
 
-function spawnMinion(x, y, scoreValue) {
+function spawnMinion(x, y, scoreValue, color) {
   const def = ENEMY_TYPES.drone;
   enemies.push({
     id: nextEnemyId++,
@@ -558,7 +559,7 @@ function spawnMinion(x, y, scoreValue) {
     hp: def.hp * 0.7,
     maxHp: def.hp * 0.7,
     speed: def.speed * 1.15,
-    color: def.color,
+    color: color || def.color,
     scoreValue,
     shoots: false,
     shootCooldown: 9999,
@@ -1250,6 +1251,58 @@ function sentinelUltimate(b, data) {
   }
 }
 
+// ---- Destroyer-specific attacks ----
+
+function turbolaserBarrageAttack(b) {
+  const thisBoss = b;
+  const batteryXs = [b.x + b.w * 0.2, b.x + b.w * 0.5, b.x + b.w * 0.8];
+  const cy = b.y + b.h * 0.5;
+  for (let i = 0; i < 3; i++) {
+    setTimeout(() => {
+      if (boss !== thisBoss || state !== "playing") return;
+      for (const bx of batteryXs) {
+        const dx = player.x + player.w / 2 - bx;
+        const dy = player.y + player.h / 2 - cy;
+        const len = Math.hypot(dx, dy) || 1;
+        enemyBullets.push({
+          x: bx - 3, y: cy,
+          vx: (dx / len) * 300, vy: (dy / len) * 300,
+          w: 7, h: 7, dmg: 13, color: b.color,
+        });
+      }
+    }, i * 220);
+  }
+}
+
+function launchFightersAttack(b) {
+  for (let i = 0; i < 3; i++) {
+    spawnMinion(b.x + b.w * 0.15 + i * (b.w * 0.35), b.y + b.h, 12, "#7d818c");
+  }
+}
+
+function tractorBeamAttack() {
+  player.tractorTimer = 1600;
+  flash("ТЯГОВЫЙ ЛУЧ ЗАХВАТИЛ ВАС", "#8b8f9e", 1200);
+  sfx.play("telegraph");
+}
+
+function prepareDestroyerUltimate() {
+  const count = 11;
+  const points = [];
+  for (let i = 0; i < count; i++) points.push({ x: rand(40, W - 40) });
+  return { points };
+}
+
+function destroyerUltimate(b, data) {
+  const d = data || prepareDestroyerUltimate();
+  d.points.forEach((p, i) => {
+    setTimeout(() => {
+      if (state !== "playing") return;
+      enemyBullets.push({ x: p.x - 6, y: -30, w: 12, h: 30, vx: 0, vy: 900, dmg: 24, color: b.color });
+    }, i * 65);
+  });
+}
+
 const BOSS_TYPES = [
   {
     key: "dreadnought",
@@ -1368,6 +1421,58 @@ const BOSS_TYPES = [
       ctx2.arc(b.x + b.w / 2, b.y + b.h * 0.4, 12, 0, Math.PI * 2);
       ctx2.fillStyle = "#d6f3ff";
       ctx2.fill();
+    },
+  },
+  {
+    key: "destroyer",
+    name: "ИМПЕРСКИЙ ЗВЁЗДНЫЙ РАЗРУШИТЕЛЬ",
+    color: "#c8ccd6",
+    fill: "#33363f",
+    w: 230,
+    h: 130,
+    baseHp: 1600,
+    hpPerTier: 760,
+    speed: 65,
+    patterns: [turbolaserBarrageAttack, launchFightersAttack, tractorBeamAttack, destroyerUltimate],
+    cooldowns: [2000, 2600, 3400, 6400],
+    ultimateName: "ОРБИТАЛЬНАЯ БОМБАРДИРОВКА",
+    ultimateTelegraphMs: 1400,
+    prepareUltimate: prepareDestroyerUltimate,
+    draw(ctx2, b) {
+      // long imperial wedge hull
+      ctx2.beginPath();
+      ctx2.moveTo(b.x + b.w * 0.5, b.y + b.h);
+      ctx2.lineTo(b.x + b.w * 0.97, b.y + b.h * 0.32);
+      ctx2.lineTo(b.x + b.w * 0.9, b.y);
+      ctx2.lineTo(b.x + b.w * 0.1, b.y);
+      ctx2.lineTo(b.x + b.w * 0.03, b.y + b.h * 0.32);
+      ctx2.closePath();
+      ctx2.fill();
+      ctx2.stroke();
+      // hull panel lines
+      ctx2.strokeStyle = "rgba(0,0,0,0.35)";
+      ctx2.lineWidth = 1;
+      for (const t of [0.3, 0.5, 0.7]) {
+        ctx2.beginPath();
+        ctx2.moveTo(b.x + b.w * (0.5 - t * 0.45), b.y + b.h * 0.05);
+        ctx2.lineTo(b.x + b.w * 0.5, b.y + b.h * (0.75 + t * 0.2));
+        ctx2.stroke();
+        ctx2.beginPath();
+        ctx2.moveTo(b.x + b.w * (0.5 + t * 0.45), b.y + b.h * 0.05);
+        ctx2.lineTo(b.x + b.w * 0.5, b.y + b.h * (0.75 + t * 0.2));
+        ctx2.stroke();
+      }
+      // command tower
+      ctx2.fillStyle = "#8a8f9e";
+      ctx2.fillRect(b.x + b.w * 0.42, b.y + b.h * 0.02, b.w * 0.16, b.h * 0.24);
+      ctx2.strokeRect(b.x + b.w * 0.42, b.y + b.h * 0.02, b.w * 0.16, b.h * 0.24);
+      // running lights
+      ctx2.fillStyle = "#ff3b30";
+      for (const t of [0.18, 0.5, 0.82]) {
+        ctx2.beginPath();
+        ctx2.arc(b.x + b.w * t, b.y + b.h * 0.5, 3, 0, Math.PI * 2);
+        ctx2.fill();
+      }
     },
   },
 ];
@@ -1831,6 +1936,10 @@ function tryDash() {
   player.dashTimer = 180;
   player.dashCooldown = 2200;
   player.invulnTimer = Math.max(player.invulnTimer, 220);
+  if (player.tractorTimer > 0) {
+    player.tractorTimer = 0;
+    flash("ВЫРВАЛИСЬ ИЗ ЛУЧА", "#9fb4ff", 900);
+  }
   sfx.play("dash");
 }
 
@@ -1857,6 +1966,20 @@ function updatePlayer(dt) {
         life: 220, maxLife: 220,
         color: "rgba(255,180,80,0.55)", size: rand(1, 2.2),
       });
+    }
+    if (player.tractorTimer > 0) {
+      player.tractorTimer -= dt;
+      if (boss) {
+        const tx = boss.x + boss.w / 2;
+        const ty = boss.y + boss.h;
+        const dx = tx - (player.x + player.w / 2);
+        const dy = ty - (player.y + player.h / 2);
+        const len = Math.hypot(dx, dy) || 1;
+        player.x += (dx / len) * 230 * (dt / 1000);
+        player.y += (dy / len) * 230 * (dt / 1000);
+      } else {
+        player.tractorTimer = 0;
+      }
     }
   }
   player.x = clamp(player.x, 6, W - player.w - 6);
@@ -2097,7 +2220,7 @@ function drawPlayer() {
   const blinking = player.invulnTimer > 0 && Math.floor(player.invulnTimer / 90) % 2 === 0;
   if (blinking) ctx.globalAlpha = 0.4;
   const weaponColor = WEAPON_DEFS[player.activeWeapon].color;
-  drawShip(player.x, player.y, player.w, player.h, "#e6ecff", weaponColor);
+  drawShip(player.x, player.y, player.w, player.h, "#d4d8e2", weaponColor);
   ctx.globalAlpha = 1;
 
   // engine flame
@@ -2185,7 +2308,7 @@ function drawTelegraphs() {
   const pulse = 0.35 + 0.25 * Math.sin(performance.now() / 70);
   ctx.save();
   ctx.globalAlpha = clamp(pulse, 0.15, 0.6);
-  ctx.fillStyle = "#38bdf8";
+  ctx.fillStyle = boss.color;
   if (d.variant === "columns") {
     for (const x of d.xs) ctx.fillRect(x - 9, 0, 18, H);
   } else if (d.variant === "sweepDown") {
@@ -2193,7 +2316,37 @@ function drawTelegraphs() {
   } else if (d.variant === "doubleSweep") {
     ctx.fillRect(0, 0, W, 26);
     ctx.fillRect(0, H - 26, W, 26);
+  } else if (d.points) {
+    ctx.strokeStyle = boss.color;
+    ctx.lineWidth = 2;
+    for (const p of d.points) {
+      ctx.beginPath();
+      ctx.arc(p.x, H - 50, 22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
   }
+  ctx.restore();
+}
+
+function drawTractorBeam() {
+  if (!boss || player.tractorTimer <= 0) return;
+  const bx = boss.x + boss.w / 2;
+  const by = boss.y + boss.h;
+  const px = player.x + player.w / 2;
+  const py = player.y + player.h / 2;
+  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 90);
+  ctx.save();
+  ctx.globalAlpha = 0.45;
+  const grad = ctx.createLinearGradient(bx, by, px, py);
+  grad.addColorStop(0, `${boss.color}aa`);
+  grad.addColorStop(1, `${boss.color}22`);
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 24 + pulse * 10;
+  ctx.beginPath();
+  ctx.moveTo(bx, by);
+  ctx.lineTo(px, py);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -2377,6 +2530,7 @@ function loop(now) {
     drawEnemies();
     drawBoss();
     drawTelegraphs();
+    drawTractorBeam();
     drawBullets();
     drawBeamEffects();
     drawLightningArcs();
