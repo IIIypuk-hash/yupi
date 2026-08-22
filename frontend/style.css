@@ -116,6 +116,10 @@ canvas {
 }
 
 /* ---------- Overlays ---------- */
+.overlay[hidden] {
+  display: none;
+}
+
 .overlay {
   position: absolute;
   inset: 0;
