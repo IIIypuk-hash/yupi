@@ -131,6 +131,23 @@ canvas {
   50% { filter: brightness(1.7); }
 }
 
+.combo-mult {
+  color: #fde68a;
+  font-weight: 700;
+}
+
+.record-badge {
+  color: #fde68a;
+  font-weight: 700;
+  margin: 0;
+}
+
+#highscore-line {
+  margin: 0 0 4px;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
 .hud-right {
   text-align: right;
   color: var(--text-dim);

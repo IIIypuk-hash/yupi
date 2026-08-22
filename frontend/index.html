@@ -26,7 +26,7 @@
         <div class="bar boss-bar"><div id="boss-fill" class="bar-fill"></div></div>
       </div>
       <div class="hud-right">
-        <div>Счёт: <span id="score">0</span></div>
+        <div>Счёт: <span id="score">0</span> <span id="combo-mult" class="combo-mult"></span></div>
         <div>Волна: <span id="wave">1</span></div>
         <div>Оружие: <span id="weapon-name">Пушка</span> Ур.<span id="weapon-lvl">1</span></div>
       </div>
@@ -35,14 +35,16 @@
     <!-- Стартовый экран -->
     <div id="start-screen" class="overlay">
       <h1>SPACE FIGHTER</h1>
-      <p>Уничтожайте врагов (среди них — щитоносцы и камикадзе), собирайте оружие и одолейте босса каждую 5-ю волну.
-      У каждого босса — своя сверхатака с предупреждением, а у одного из них лазеры пробивают карту насквозь. Следите за шкалой УЛЬТ — она копится сама и даёт мощный суперудар.</p>
+      <p>Уничтожайте врагов (среди них — щитоносцы и камикадзе), собирайте оружие и дронов-спутников, стреляйте по астероидам ради бонусов и одолейте босса каждую 5-ю волну.
+      У каждого босса — своя сверхатака с предупреждением и фаза ярости на половине HP, а у одного из них лазеры пробивают карту насквозь. Шкала УЛЬТ копится сама и даёт мощный суперудар. Убивайте без урона — множитель очков растёт.</p>
+      <p id="highscore-line">Рекорд: <span id="highscore-value">0</span></p>
       <div class="controls-hint">
         <div><b>Стрелки / WASD</b> — движение</div>
         <div><b>Пробел</b> — стрельба</div>
         <div><b>1-5</b> — пушка / лазер / ракеты / молния / мины (нужно сначала подобрать)</div>
         <div><b>E</b> — суперудар, когда шкала УЛЬТ полна</div>
-        <div><b>P</b> — пауза</div>
+        <div><b>Shift</b> — рывок с неуязвимостью (есть перезарядка)</div>
+        <div><b>P</b> — пауза, <b>M</b> — звук вкл/выкл</div>
       </div>
       <button id="start-btn" class="btn">Начать игру</button>
     </div>
@@ -57,6 +59,7 @@
     <div id="gameover-screen" class="overlay" hidden>
       <h1>КОРАБЛЬ УНИЧТОЖЕН</h1>
       <p>Счёт: <span id="final-score">0</span></p>
+      <p id="gameover-record" class="record-badge" hidden>🏆 НОВЫЙ РЕКОРД!</p>
       <button id="restart-btn" class="btn">Заново</button>
     </div>
 
@@ -64,6 +67,7 @@
     <div id="win-screen" class="overlay" hidden>
       <h1>БОСС ПОВЕРЖЕН!</h1>
       <p>Счёт: <span id="win-score">0</span></p>
+      <p id="win-record" class="record-badge" hidden>🏆 НОВЫЙ РЕКОРД!</p>
       <button id="next-level-btn" class="btn">Следующая волна</button>
     </div>
   </div>
