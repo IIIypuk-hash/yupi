@@ -42,7 +42,15 @@ function flash(text, color = "#4dd0ff", duration = 1600) {
 
 /* ============================== World state ============================== */
 
-let player, bullets, enemyBullets, enemies, powerups, particles, boss, stars, banners;
+let player = null;
+let bullets = [];
+let enemyBullets = [];
+let enemies = [];
+let powerups = [];
+let particles = [];
+let boss = null;
+let stars = [];
+let banners = [];
 let wave = 1;
 let score = 0;
 let spawnTimer = 0;
