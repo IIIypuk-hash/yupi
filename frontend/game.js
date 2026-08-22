@@ -64,6 +64,7 @@ function ensureAudio() {
   } catch (e) {
     audioCtx = null;
   }
+  initMusic();
 }
 
 const SFX_MIN_GAP = {
@@ -178,6 +179,105 @@ const sfx = {
   },
 };
 
+/* ============================== Music (procedural ambient, no assets) ============================== */
+
+let music = null;
+
+function initMusic() {
+  if (music || !audioCtx) return;
+  try {
+    const master = audioCtx.createGain();
+    master.gain.value = muted ? 0 : 0.5;
+    master.connect(audioCtx.destination);
+
+    // ---- calm ambient pad ----
+    const ambientGain = audioCtx.createGain();
+    ambientGain.gain.value = 0.18;
+    const ambientFilter = audioCtx.createBiquadFilter();
+    ambientFilter.type = "lowpass";
+    ambientFilter.frequency.value = 900;
+    ambientFilter.connect(ambientGain);
+    ambientGain.connect(master);
+
+    const padFreqs = [55, 82.41, 110]; // A1, E2, A2 — calm open fifths
+    for (let i = 0; i < padFreqs.length; i++) {
+      const o = audioCtx.createOscillator();
+      o.type = "sine";
+      o.frequency.value = padFreqs[i];
+      o.detune.value = (i - 1) * 5;
+      const g = audioCtx.createGain();
+      g.gain.value = i === 0 ? 0.5 : 0.26;
+      o.connect(g);
+      g.connect(ambientFilter);
+      o.start();
+    }
+    // slow filter sweep so the pad breathes instead of sitting static
+    const filterLfo = audioCtx.createOscillator();
+    filterLfo.type = "sine";
+    filterLfo.frequency.value = 0.045;
+    const filterLfoDepth = audioCtx.createGain();
+    filterLfoDepth.gain.value = 350;
+    filterLfo.connect(filterLfoDepth);
+    filterLfoDepth.connect(ambientFilter.frequency);
+    filterLfo.start();
+
+    // ---- tense boss layer (silent until a boss appears) ----
+    const tenseGain = audioCtx.createGain();
+    tenseGain.gain.value = 0;
+    tenseGain.connect(master);
+
+    const tensePulseGain = audioCtx.createGain();
+    tensePulseGain.gain.value = 0.75;
+    tensePulseGain.connect(tenseGain);
+
+    const tenseFreqs = [65.4, 92.5]; // C2 + F#2 — low, slightly dissonant
+    for (const f of tenseFreqs) {
+      const o = audioCtx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.value = f;
+      const g = audioCtx.createGain();
+      g.gain.value = 0.22;
+      o.connect(g);
+      g.connect(tensePulseGain);
+      o.start();
+    }
+    // heartbeat-style pulse via an LFO modulating the tense layer's gain
+    const pulseLfo = audioCtx.createOscillator();
+    pulseLfo.type = "sine";
+    pulseLfo.frequency.value = 1.5;
+    const pulseDepth = audioCtx.createGain();
+    pulseDepth.gain.value = 0.25;
+    pulseLfo.connect(pulseDepth);
+    pulseDepth.connect(tensePulseGain.gain);
+    pulseLfo.start();
+
+    music = { master, ambientGain, tenseGain, tense: false };
+  } catch (e) {
+    music = null;
+  }
+}
+
+function setMusicTension(active) {
+  if (!music || !audioCtx) return;
+  if (music.tense === active) return;
+  music.tense = active;
+  const t = audioCtx.currentTime;
+  music.tenseGain.gain.cancelScheduledValues(t);
+  music.tenseGain.gain.setValueAtTime(music.tenseGain.gain.value, t);
+  music.tenseGain.gain.linearRampToValueAtTime(active ? 0.16 : 0, t + 1.3);
+  music.ambientGain.gain.cancelScheduledValues(t);
+  music.ambientGain.gain.setValueAtTime(music.ambientGain.gain.value, t);
+  music.ambientGain.gain.linearRampToValueAtTime(active ? 0.08 : 0.18, t + 1.3);
+}
+
+function setMusicMuted(isMuted) {
+  if (!music || !audioCtx) return;
+  const t = audioCtx.currentTime;
+  music.master.gain.cancelScheduledValues(t);
+  music.master.gain.setValueAtTime(music.master.gain.value, t);
+  music.master.gain.linearRampToValueAtTime(isMuted ? 0 : 0.5, t + 0.15);
+}
+
 /* ============================== High score ============================== */
 
 let highScore = Number(localStorage.getItem("sf_highscore") || 0);
@@ -207,6 +307,7 @@ let lightningArcs = [];
 let beamEffects = [];
 let boss = null;
 let stars = [];
+let nebulaBlobs = [];
 let banners = [];
 let wave = 1;
 let score = 0;
@@ -233,15 +334,48 @@ function triggerScreenShake(mag, durationMs) {
   }
 }
 
+const STAR_COLORS = ["#ffffff", "#cfe3ff", "#e6d8ff", "#ffe9d6"];
+
 function initStars() {
   stars = [];
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < 130; i++) {
     stars.push({
       x: rand(0, W),
       y: rand(0, H),
       speed: rand(20, 120),
-      size: rand(0.6, 2.2),
+      size: rand(0.6, 2.3),
+      color: STAR_COLORS[Math.floor(rand(0, STAR_COLORS.length))],
+      tw: rand(0, Math.PI * 2),
+      twSpeed: rand(400, 1000),
     });
+  }
+}
+
+function initNebula() {
+  nebulaBlobs = [];
+  const palette = ["#4dd0ff", "#a463ff", "#ff3b5c", "#34d399"];
+  for (let i = 0; i < 4; i++) {
+    nebulaBlobs.push({
+      x: rand(0, W),
+      y: rand(0, H),
+      r: rand(170, 320),
+      color: palette[i % palette.length],
+      driftX: rand(-3, 3),
+      driftY: rand(3, 9),
+    });
+  }
+}
+
+function updateNebula(dt) {
+  for (const n of nebulaBlobs) {
+    n.x += n.driftX * (dt / 1000);
+    n.y += n.driftY * (dt / 1000);
+    if (n.y - n.r > H) {
+      n.y = -n.r;
+      n.x = rand(0, W);
+    }
+    if (n.x < -n.r) n.x = W + n.r;
+    if (n.x > W + n.r) n.x = -n.r;
   }
 }
 
@@ -299,6 +433,7 @@ function resetGame() {
   shakeTime = 0;
   startWave();
   initStars();
+  initNebula();
 }
 
 function isBossWave(w) {
@@ -315,6 +450,7 @@ function startWave() {
   boss = null;
   enemyBullets = [];
   el.bossHud.hidden = true;
+  setMusicTension(false);
   flash(
     isBossWave(wave) ? `ВОЛНА ${wave} — БОСС!` : `ВОЛНА ${wave}`,
     isBossWave(wave) ? "#ff3b5c" : "#4dd0ff"
@@ -1274,6 +1410,7 @@ function spawnBoss() {
   el.bossHud.hidden = false;
   el.bossName.textContent = def.name;
   flash(`БОСС: ${def.name}`, def.color, 2200);
+  setMusicTension(true);
 }
 
 function startTelegraph(b) {
@@ -1367,6 +1504,7 @@ function updateBoss(dt) {
       powerups.push({ x: bx + rand(-40, 40), y: by, w: 22, h: 22, vy: 70, ...def });
     }
     boss = null;
+    setMusicTension(false);
     winWave();
     return;
   }
@@ -1711,6 +1849,15 @@ function updatePlayer(dt) {
     if (keys["arrowright"] || keys["d"]) player.x += s;
     if (keys["arrowup"] || keys["w"]) player.y -= s;
     if (keys["arrowdown"] || keys["s"]) player.y += s;
+    if (Math.random() < 0.4) {
+      particles.push({
+        x: player.x + player.w / 2 + rand(-3, 3),
+        y: player.y + player.h,
+        vx: rand(-8, 8), vy: rand(50, 100),
+        life: 220, maxLife: 220,
+        color: "rgba(255,180,80,0.55)", size: rand(1, 2.2),
+      });
+    }
   }
   player.x = clamp(player.x, 6, W - player.w - 6);
   player.y = clamp(player.y, 6, H - player.h - 6);
@@ -1859,6 +2006,7 @@ function updateStars(dt) {
       st.x = rand(0, W);
     }
   }
+  updateNebula(dt);
 }
 
 function updateBanners(dt) {
@@ -1870,15 +2018,50 @@ function updateBanners(dt) {
 
 /* ============================== Rendering ============================== */
 
+function drawNebula() {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const n of nebulaBlobs) {
+    const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r);
+    grad.addColorStop(0, `${n.color}22`);
+    grad.addColorStop(1, `${n.color}00`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawStars() {
   ctx.fillStyle = "#05060f";
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = "#ffffff";
+  drawNebula();
+  const now = performance.now();
   for (const st of stars) {
-    ctx.globalAlpha = 0.5 + st.size / 3;
+    const twinkle = 0.6 + 0.4 * Math.sin(now / st.twSpeed + st.tw);
+    ctx.globalAlpha = (0.45 + st.size / 3) * twinkle;
+    ctx.fillStyle = st.color;
     ctx.fillRect(st.x, st.y, st.size, st.size);
   }
   ctx.globalAlpha = 1;
+}
+
+function drawVignette() {
+  ctx.save();
+  const base = ctx.createRadialGradient(W / 2, H / 2, H * 0.32, W / 2, H / 2, H * 0.8);
+  base.addColorStop(0, "rgba(0,0,0,0)");
+  base.addColorStop(1, "rgba(2,3,10,0.55)");
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, W, H);
+  if (boss) {
+    const tint = ctx.createRadialGradient(W / 2, H / 2, H * 0.15, W / 2, H / 2, H * 0.9);
+    tint.addColorStop(0, `${boss.color}00`);
+    tint.addColorStop(1, `${boss.color}22`);
+    ctx.fillStyle = tint;
+    ctx.fillRect(0, 0, W, H);
+  }
+  ctx.restore();
 }
 
 function drawShip(x, y, w, h, color, glow) {
@@ -2202,6 +2385,7 @@ function loop(now) {
   }
   ctx.restore();
 
+  drawVignette();
   drawBanners();
 
   requestAnimationFrame(loop);
@@ -2215,6 +2399,7 @@ window.addEventListener("keydown", (e) => {
   if (e.key.toLowerCase() === "p") togglePause();
   if (e.key.toLowerCase() === "m") {
     muted = !muted;
+    setMusicMuted(muted);
     flash(muted ? "ЗВУК ВЫКЛ" : "ЗВУК ВКЛ", "#8792b8", 700);
   }
   if (state === "playing" && ["1", "2", "3", "4", "5"].includes(e.key)) {
@@ -2269,4 +2454,5 @@ el.nextLevelBtn.addEventListener("click", () => {
 /* ============================== Boot ============================== */
 
 initStars();
+initNebula();
 requestAnimationFrame(loop);
