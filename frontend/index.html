@@ -17,6 +17,10 @@
         <div class="bar-label">HP</div>
         <div class="bar hp-bar"><div id="hp-fill" class="bar-fill"></div></div>
       </div>
+      <div class="hud-row" id="ult-bar-wrap">
+        <div class="bar-label ult-label" id="ult-label">УЛЬТ</div>
+        <div class="bar ult-bar"><div id="ult-fill" class="bar-fill"></div></div>
+      </div>
       <div class="hud-row" id="boss-hud" hidden>
         <div class="bar-label boss-label" id="boss-name">БОСС</div>
         <div class="bar boss-bar"><div id="boss-fill" class="bar-fill"></div></div>
@@ -31,11 +35,13 @@
     <!-- Стартовый экран -->
     <div id="start-screen" class="overlay">
       <h1>SPACE FIGHTER</h1>
-      <p>Уничтожайте вражеские корабли, собирайте усиления и одолейте босса каждую 5-ю волну — босс каждый раз разный.</p>
+      <p>Уничтожайте врагов (среди них — щитоносцы и камикадзе), собирайте оружие и одолейте босса каждую 5-ю волну.
+      У каждого босса — своя сверхатака с предупреждением, а у одного из них лазеры пробивают карту насквозь. Следите за шкалой УЛЬТ — она копится сама и даёт мощный суперудар.</p>
       <div class="controls-hint">
         <div><b>Стрелки / WASD</b> — движение</div>
         <div><b>Пробел</b> — стрельба</div>
-        <div><b>1 / 2 / 3</b> — пушка / лазер / ракеты (нужно сначала подобрать)</div>
+        <div><b>1-5</b> — пушка / лазер / ракеты / молния / мины (нужно сначала подобрать)</div>
+        <div><b>E</b> — суперудар, когда шкала УЛЬТ полна</div>
         <div><b>P</b> — пауза</div>
       </div>
       <button id="start-btn" class="btn">Начать игру</button>

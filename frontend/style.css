@@ -110,6 +110,27 @@ canvas {
   background: linear-gradient(90deg, var(--boss), #ff8a5c);
 }
 
+.ult-bar .bar-fill {
+  background: linear-gradient(90deg, #f59e0b, #fde68a);
+}
+
+.ult-label {
+  color: #f59e0b;
+}
+
+#ult-bar-wrap.ready .ult-label {
+  color: #fde68a;
+}
+
+#ult-bar-wrap.ready .bar-fill {
+  animation: ultPulse 0.6s ease-in-out infinite;
+}
+
+@keyframes ultPulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.7); }
+}
+
 .hud-right {
   text-align: right;
   color: var(--text-dim);
