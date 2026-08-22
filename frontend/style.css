@@ -63,6 +63,10 @@ canvas {
   font-size: 14px;
 }
 
+.hud-row[hidden] {
+  display: none;
+}
+
 .hud-row {
   display: flex;
   align-items: center;
