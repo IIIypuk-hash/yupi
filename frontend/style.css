@@ -83,6 +83,8 @@ canvas {
 
 .boss-label {
   color: var(--boss);
+  width: auto;
+  white-space: nowrap;
 }
 
 .bar {

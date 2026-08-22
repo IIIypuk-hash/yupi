@@ -18,23 +18,24 @@
         <div class="bar hp-bar"><div id="hp-fill" class="bar-fill"></div></div>
       </div>
       <div class="hud-row" id="boss-hud" hidden>
-        <div class="bar-label boss-label">БОСС</div>
+        <div class="bar-label boss-label" id="boss-name">БОСС</div>
         <div class="bar boss-bar"><div id="boss-fill" class="bar-fill"></div></div>
       </div>
       <div class="hud-right">
         <div>Счёт: <span id="score">0</span></div>
         <div>Волна: <span id="wave">1</span></div>
-        <div>Оружие: <span id="weapon-lvl">1</span></div>
+        <div>Оружие: <span id="weapon-name">Пушка</span> Ур.<span id="weapon-lvl">1</span></div>
       </div>
     </div>
 
     <!-- Стартовый экран -->
     <div id="start-screen" class="overlay">
       <h1>SPACE FIGHTER</h1>
-      <p>Уничтожайте вражеские корабли, собирайте усиления и одолейте босса в конце волны.</p>
+      <p>Уничтожайте вражеские корабли, собирайте усиления и одолейте босса каждую 5-ю волну — босс каждый раз разный.</p>
       <div class="controls-hint">
         <div><b>Стрелки / WASD</b> — движение</div>
         <div><b>Пробел</b> — стрельба</div>
+        <div><b>1 / 2 / 3</b> — пушка / лазер / ракеты (нужно сначала подобрать)</div>
         <div><b>P</b> — пауза</div>
       </div>
       <button id="start-btn" class="btn">Начать игру</button>
