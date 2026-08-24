@@ -2595,8 +2595,14 @@ function loop(now) {
 window.addEventListener("keydown", (e) => {
   keys[e.key.toLowerCase()] = true;
   if (e.key === " ") e.preventDefault();
-  if (e.key.toLowerCase() === "p") togglePause();
-  if (e.key.toLowerCase() === "m") {
+  // e.code is the physical key position, independent of keyboard layout —
+  // e.key would be e.g. "з" for the P key and "ь" for the M key on a
+  // Cyrillic (ЙЦУКЕН) layout, which is exactly what most of this game's
+  // audience runs, so P/M silently did nothing for them. Same fix already
+  // applied to E (ultimate) and Shift (dash) below; kept e.key as a
+  // fallback for US-layout users where e.code support could be missing.
+  if (e.code === "KeyP" || e.key.toLowerCase() === "p") togglePause();
+  if (e.code === "KeyM" || e.key.toLowerCase() === "m") {
     muted = !muted;
     setMusicMuted(muted);
     flash(muted ? "ЗВУК ВЫКЛ" : "ЗВУК ВКЛ", "#8792b8", 700);
@@ -2746,55 +2752,94 @@ el.startBtn.addEventListener("click", () => {
 
 el.resumeBtn.addEventListener("click", togglePause);
 
+/**
+ * Disables `buttons` and relabels `loadingBtn` while an ad request is in
+ * flight, restoring both once `run`'s callback fires `restore()`. Two
+ * things this fixes: a player can't fire a second overlapping ad request
+ * by mashing the button (a disabled <button> doesn't dispatch clicks at
+ * all), and — since even the "no ad available" case can take a few
+ * seconds to resolve (see showRewardedVideo's comment) — there's now a
+ * visible "Загрузка рекламы…" state instead of the screen looking frozen.
+ */
+function withAdBusy(buttons, loadingBtn, loadingText, run) {
+  const originalText = loadingBtn.textContent;
+  for (const b of buttons) b.disabled = true;
+  loadingBtn.textContent = loadingText;
+  run(() => {
+    for (const b of buttons) b.disabled = false;
+    loadingBtn.textContent = originalText;
+  });
+}
+
 el.restartBtn.addEventListener("click", () => {
   ensureAudio();
   // Natural break: state is already "gameover" (not "playing"), so showing
-  // an interstitial here can't interrupt active gameplay.
-  maybeShowInterstitial(() => {
-    el.gameoverScreen.hidden = true;
-    resetGame();
-    state = "playing";
-    setTouchControlsVisible(true);
-    notifyGameplay(true);
+  // an interstitial here can't interrupt active gameplay. Both gameover
+  // buttons are disabled together since only one ad can be in flight at a
+  // time on the platform's end.
+  withAdBusy([el.restartBtn, el.continueAdBtn], el.restartBtn, "Загрузка рекламы…", (restore) => {
+    maybeShowInterstitial(() => {
+      restore();
+      el.gameoverScreen.hidden = true;
+      resetGame();
+      state = "playing";
+      setTouchControlsVisible(true);
+      notifyGameplay(true);
+    });
   });
 });
 
 el.nextLevelBtn.addEventListener("click", () => {
   // Natural break: state is already "win" (not "playing") after a boss kill.
-  maybeShowInterstitial(() => {
-    el.winScreen.hidden = true;
-    advanceToNextWave();
-    state = "playing";
-    setTouchControlsVisible(true);
-    notifyGameplay(true);
+  withAdBusy([el.nextLevelBtn], el.nextLevelBtn, "Загрузка рекламы…", (restore) => {
+    maybeShowInterstitial(() => {
+      restore();
+      el.winScreen.hidden = true;
+      advanceToNextWave();
+      state = "playing";
+      setTouchControlsVisible(true);
+      notifyGameplay(true);
+    });
   });
 });
 
 el.continueAdBtn.addEventListener("click", () => {
   ensureAudio();
-  const revive = () => {
-    player.hasUsedContinue = true;
-    player.hp = clamp(50, 0, player.maxHp);
-    player.invulnTimer = 2000;
-    el.gameoverScreen.hidden = true;
-    el.continueAdBtn.hidden = true;
-    state = "playing";
-    setTouchControlsVisible(true);
-    notifyGameplay(true);
-    sfx.play("powerup");
-  };
-  showRewardedVideo(revive, revive);
+  withAdBusy([el.restartBtn, el.continueAdBtn], el.continueAdBtn, "Загрузка рекламы…", (restore) => {
+    const revive = () => {
+      restore();
+      player.hasUsedContinue = true;
+      player.hp = clamp(50, 0, player.maxHp);
+      player.invulnTimer = 2000;
+      el.gameoverScreen.hidden = true;
+      el.continueAdBtn.hidden = true;
+      state = "playing";
+      setTouchControlsVisible(true);
+      notifyGameplay(true);
+      sfx.play("powerup");
+    };
+    // onUnavailable === onRewarded here on purpose (unchanged from before):
+    // when there's genuinely no ad to show (or no SDK at all, e.g. local
+    // dev), the player still gets the revive rather than being left with
+    // nothing after being promised one. What changed is only how fast
+    // "unavailable" is now detected — see showRewardedVideo's onClose
+    // handling — so this no longer requires waiting out the 60s timeout.
+    showRewardedVideo(revive, revive);
+  });
 });
 
 el.ultAdBtn.addEventListener("click", () => {
   if (player.ultimateCharge >= 100) return;
   ensureAudio();
-  const grant = () => {
-    player.ultimateCharge = 100;
-    flash("УЛЬТ ЗАРЯЖЕН!", "#fde68a", 1200);
-    sfx.play("powerup");
-  };
-  showRewardedVideo(grant, grant);
+  withAdBusy([el.ultAdBtn], el.ultAdBtn, "Загрузка рекламы…", (restore) => {
+    const grant = () => {
+      restore();
+      player.ultimateCharge = 100;
+      flash("УЛЬТ ЗАРЯЖЕН!", "#fde68a", 1200);
+      sfx.play("powerup");
+    };
+    showRewardedVideo(grant, grant);
+  });
 });
 
 /* ============================== Yandex Games SDK (optional) ============================== */
@@ -2866,11 +2911,16 @@ function maybeShowInterstitial(onDone) {
  * the ad and still get the reward. `onUnavailable` covers real failures,
  * simply not running on Yandex at all (local dev — without it these
  * buttons would be untestable outside the platform, and handing out the
- * reward for free off-platform is harmless), AND a safety timeout: rewarded
- * videos can legitimately run 30s+, so this waits a generous 60s before
- * giving up — long enough to never cut off a real ad, but still recovers
- * instead of leaving the player stuck if the platform never calls back at
- * all (observed exactly that with a loaded-but-standalone SDK in testing).
+ * reward for free off-platform is harmless), a real SDK onClose (the ad
+ * didn't show — e.g. no fill: their own callback log showed
+ * `AdvAdvManager callOnAdvClose false` a few seconds after requesting an
+ * ad with nothing to serve), and — only as a last-resort safety net — a
+ * 60s timeout for the case where the platform doesn't call back at all
+ * (observed once with a loaded-but-standalone SDK in testing). Listening
+ * to onClose matters: without it, "no ad available" only ever recovered
+ * via that 60s timeout, which from a player who didn't wait a full minute
+ * looked exactly like "ad played, then nothing happens" — the actual bug
+ * report that led to this fix.
  */
 function showRewardedVideo(onRewarded, onUnavailable) {
   try {
@@ -2895,6 +2945,13 @@ function showRewardedVideo(onRewarded, onUnavailable) {
       onRewarded: () => {
         clearTimeout(timeoutId);
         finishRewarded();
+      },
+      onClose: () => {
+        // Fires both after a real reward (finishRewarded already ran and
+        // set done=true, so this is a no-op) and when nothing was shown at
+        // all — the latter is the case this handler actually exists for.
+        clearTimeout(timeoutId);
+        finishUnavailable();
       },
       onError: () => {
         clearTimeout(timeoutId);

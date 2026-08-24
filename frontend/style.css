@@ -244,6 +244,13 @@ canvas {
   transform: translateY(0);
 }
 
+.btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  pointer-events: none;
+  transform: none;
+}
+
 .btn-ad {
   border-color: #fde68a;
   background: rgba(245, 158, 11, 0.12);
