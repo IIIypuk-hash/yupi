@@ -19,17 +19,35 @@
   <script src="https://yandex.ru/games/sdk/v2"></script>
   <script>
     window.ysdk = null;
+    // Req. 2.14: language must be read from the SDK at launch (not
+    // mid-gameplay). The game only actually has Russian text right now, so
+    // every detected language currently falls back to "ru" — that's an
+    // explicitly allowed minimum per Yandex's own docs for single-language
+    // games. What matters for compliance is that we DO read
+    // environment.i18n.lang at startup and apply it, rather than never
+    // touching it at all.
+    var SUPPORTED_LANGS = ["ru"];
+    var RESERVE_LANG = "ru";
+    window.gameLang = RESERVE_LANG;
+    function applyLang(lang) {
+      window.gameLang = SUPPORTED_LANGS.indexOf(lang) !== -1 ? lang : RESERVE_LANG;
+      document.documentElement.lang = window.gameLang;
+    }
     if (window.YaGames) {
       window.YaGames.init()
         .then(function (sdk) {
           window.ysdk = sdk;
+          var detected = sdk.environment && sdk.environment.i18n && sdk.environment.i18n.lang;
+          applyLang(detected || RESERVE_LANG);
           if (sdk.features && sdk.features.LoadingAPI) {
             sdk.features.LoadingAPI.ready();
           }
         })
         .catch(function () {
-          /* best-effort — the game must run fine without the SDK too */
+          applyLang(RESERVE_LANG);
         });
+    } else {
+      applyLang(RESERVE_LANG);
     }
   </script>
 </head>
