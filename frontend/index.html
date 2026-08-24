@@ -9,14 +9,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="static/style.css" />
-  <!-- Yandex Games SDK, wired up exactly per the current official docs
+  <!-- Yandex Games SDK, wired up per the current official docs
        (yandex.ru/dev/games/doc/ru/sdk/sdk-about): relative "/sdk.js" is the
        recommended path when the game is uploaded as a zip through the
        developer console (their server proxies it) — an absolute CDN URL is
-       only for hosting on your own domain, and using it here is exactly
-       what makes the platform's debug panel report the old-loader "IF"
-       state instead of the correct "IT". Loaded with async + onload per
-       their example, rather than a blocking tag.
+       only for hosting on your own domain.
+
+       Their own example attaches the callback via an inline onload="..."
+       HTML attribute. We deliberately DON'T do that: inline event-handler
+       attributes are exactly what a Content-Security-Policy without
+       'unsafe-inline' (very plausible on a platform hosting third-party
+       games) silently blocks — the script itself loads fine, but the
+       handler never fires, which looks exactly like the debug panel's "W"
+       (waiting forever) state we actually hit in production. Attaching the
+       same callback via addEventListener from a normal <script> block below
+       is functionally identical but isn't affected by that CSP directive.
 
        Deliberately NOT handled inside game.js: that file is large, and if
        anything in it threw before reaching its boot section, the mandatory
@@ -27,8 +34,9 @@
 
        Locally (plain `python main.py`, no Yandex), "/sdk.js" 404s unless
        backend/app.py's dev-only proxy route is serving it — either way,
-       onerror below falls back cleanly so the game always works. -->
-  <script async src="/sdk.js" onload="initSDK()" onerror="initSDKFallback()"></script>
+       the error listener below falls back cleanly so the game always
+       works. -->
+  <script async id="ya-sdk-script" src="/sdk.js"></script>
   <script>
     window.ysdk = null;
     // Req. 2.14: language must be read from the SDK at launch (not
@@ -61,6 +69,9 @@
         initSDKFallback();
       }
     }
+    var sdkScriptEl = document.getElementById("ya-sdk-script");
+    sdkScriptEl.addEventListener("load", initSDK);
+    sdkScriptEl.addEventListener("error", initSDKFallback);
   </script>
 </head>
 <body>
