@@ -1,0 +1,8 @@
+services:
+  space-fighter:
+    build: .
+    image: space-fighter:latest
+    container_name: space-fighter
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
