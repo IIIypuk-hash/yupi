@@ -9,14 +9,26 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="static/style.css" />
-  <!-- Yandex Games SDK. Deliberately NOT handled inside game.js: that file is
-       large, and if anything in it threw before reaching its boot section,
-       the mandatory ready() call below would simply never fire — which is
-       exactly what moderation flags as "SDK not embedded". This tiny inline
-       script is fully independent of game.js and can't be taken down by a
-       bug anywhere else in the game. Safe to include even outside Yandex —
-       it no-ops if YaGames never loads (e.g. local dev without internet). -->
-  <script src="https://yandex.ru/games/sdk/v2"></script>
+  <!-- Yandex Games SDK, wired up exactly per the current official docs
+       (yandex.ru/dev/games/doc/ru/sdk/sdk-about): relative "/sdk.js" is the
+       recommended path when the game is uploaded as a zip through the
+       developer console (their server proxies it) — an absolute CDN URL is
+       only for hosting on your own domain, and using it here is exactly
+       what makes the platform's debug panel report the old-loader "IF"
+       state instead of the correct "IT". Loaded with async + onload per
+       their example, rather than a blocking tag.
+
+       Deliberately NOT handled inside game.js: that file is large, and if
+       anything in it threw before reaching its boot section, the mandatory
+       ready() call below would simply never fire — which is exactly what
+       moderation flags as "SDK not embedded". This tiny inline script is
+       fully independent of game.js and can't be taken down by a bug
+       anywhere else in the game.
+
+       Locally (plain `python main.py`, no Yandex), "/sdk.js" 404s unless
+       backend/app.py's dev-only proxy route is serving it — either way,
+       onerror below falls back cleanly so the game always works. -->
+  <script async src="/sdk.js" onload="initSDK()" onerror="initSDKFallback()"></script>
   <script>
     window.ysdk = null;
     // Req. 2.14: language must be read from the SDK at launch (not
@@ -33,21 +45,21 @@
       window.gameLang = SUPPORTED_LANGS.indexOf(lang) !== -1 ? lang : RESERVE_LANG;
       document.documentElement.lang = window.gameLang;
     }
-    if (window.YaGames) {
-      window.YaGames.init()
-        .then(function (sdk) {
-          window.ysdk = sdk;
-          var detected = sdk.environment && sdk.environment.i18n && sdk.environment.i18n.lang;
-          applyLang(detected || RESERVE_LANG);
-          if (sdk.features && sdk.features.LoadingAPI) {
-            sdk.features.LoadingAPI.ready();
-          }
-        })
-        .catch(function () {
-          applyLang(RESERVE_LANG);
-        });
-    } else {
+    function initSDKFallback() {
       applyLang(RESERVE_LANG);
+    }
+    async function initSDK() {
+      try {
+        var sdk = await YaGames.init();
+        window.ysdk = sdk;
+        var detected = sdk.environment && sdk.environment.i18n && sdk.environment.i18n.lang;
+        applyLang(detected || RESERVE_LANG);
+        if (sdk.features && sdk.features.LoadingAPI) {
+          sdk.features.LoadingAPI.ready();
+        }
+      } catch (err) {
+        initSDKFallback();
+      }
     }
   </script>
 </head>
