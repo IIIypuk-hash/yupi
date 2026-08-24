@@ -44,12 +44,15 @@
       У каждого босса — своя сверхатака с предупреждением и фаза ярости на половине HP: у одного лазеры пробивают карту насквозь, а имперский звёздный разрушитель ловит вас тяговым лучом и обстреливает орбитальными турболазерами. Шкала УЛЬТ копится сама и даёт мощный суперудар. Убивайте без урона — множитель очков растёт.</p>
       <p id="highscore-line">Рекорд: <span id="highscore-value">0</span></p>
       <div class="controls-hint">
-        <div><b>Стрелки / WASD</b> — движение</div>
-        <div><b>Пробел</b> — стрельба</div>
-        <div><b>1-5</b> — пушка / лазер / ракеты / молния / мины (нужно сначала подобрать)</div>
-        <div><b>E</b> — суперудар, когда шкала УЛЬТ полна</div>
-        <div><b>Shift</b> — рывок с неуязвимостью (разрывает тяговый луч)</div>
-        <div><b>P</b> — пауза, <b>M</b> — звук вкл/выкл</div>
+        <div class="kb-only"><b>Стрелки / WASD</b> — движение</div>
+        <div class="kb-only"><b>Пробел</b> — стрельба</div>
+        <div class="kb-only"><b>1-5</b> — пушка / лазер / ракеты / молния / мины (нужно сначала подобрать)</div>
+        <div class="kb-only"><b>E</b> — суперудар, когда шкала УЛЬТ полна</div>
+        <div class="kb-only"><b>Shift</b> — рывок с неуязвимостью (разрывает тяговый луч)</div>
+        <div class="kb-only"><b>P</b> — пауза, <b>M</b> — звук вкл/выкл</div>
+        <div class="touch-only"><b>Джойстик слева</b> — движение</div>
+        <div class="touch-only"><b>●</b> справа — стрельба, цифры — оружие</div>
+        <div class="touch-only"><b>⇒</b> — рывок, <b>★</b> — суперудар</div>
       </div>
       <button id="start-btn" class="btn">Начать игру</button>
     </div>
@@ -74,6 +77,26 @@
       <p>Счёт: <span id="win-score">0</span></p>
       <p id="win-record" class="record-badge" hidden>🏆 НОВЫЙ РЕКОРД!</p>
       <button id="next-level-btn" class="btn">Следующая волна</button>
+    </div>
+
+    <!-- Сенсорное управление (мобильные) -->
+    <div id="touch-controls" hidden>
+      <div class="touch-joystick" id="touch-joystick">
+        <div class="touch-joystick-knob" id="touch-joystick-knob"></div>
+      </div>
+      <div class="touch-weapons">
+        <button class="touch-weapon-btn" data-weapon="1">1</button>
+        <button class="touch-weapon-btn" data-weapon="2">2</button>
+        <button class="touch-weapon-btn" data-weapon="3">3</button>
+        <button class="touch-weapon-btn" data-weapon="4">4</button>
+        <button class="touch-weapon-btn" data-weapon="5">5</button>
+      </div>
+      <div class="touch-actions">
+        <button class="touch-action-btn touch-dash-btn" id="touch-dash-btn">⇒</button>
+        <button class="touch-action-btn touch-ult-btn" id="touch-ult-btn">★</button>
+        <button class="touch-action-btn touch-fire-btn" id="touch-fire-btn">●</button>
+      </div>
+      <button class="touch-pause-btn" id="touch-pause-btn">II</button>
     </div>
   </div>
 

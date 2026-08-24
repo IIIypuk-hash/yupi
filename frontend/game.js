@@ -33,10 +33,37 @@ const el = {
   resumeBtn: document.getElementById("resume-btn"),
   restartBtn: document.getElementById("restart-btn"),
   nextLevelBtn: document.getElementById("next-level-btn"),
+  touchControls: document.getElementById("touch-controls"),
+  touchJoystick: document.getElementById("touch-joystick"),
+  touchJoystickKnob: document.getElementById("touch-joystick-knob"),
+  touchFireBtn: document.getElementById("touch-fire-btn"),
+  touchDashBtn: document.getElementById("touch-dash-btn"),
+  touchUltBtn: document.getElementById("touch-ult-btn"),
+  touchPauseBtn: document.getElementById("touch-pause-btn"),
+  touchWeaponBtns: Array.from(document.querySelectorAll(".touch-weapon-btn")),
 };
 
 /** @type {"start"|"playing"|"paused"|"gameover"|"win"} */
 let state = "start";
+
+const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+if (!isTouchDevice) el.touchControls.classList.add("touch-inactive");
+
+function setTouchControlsVisible(visible) {
+  if (!isTouchDevice) return;
+  el.touchControls.hidden = !visible;
+  if (!visible) {
+    // Release any in-progress drag/hold so a stale key doesn't keep firing
+    // once the overlay hides the (now non-interactive) buttons underneath.
+    keys["arrowleft"] = false;
+    keys["arrowright"] = false;
+    keys["arrowup"] = false;
+    keys["arrowdown"] = false;
+    keys[" "] = false;
+    el.touchJoystick.classList.remove("active");
+    el.touchJoystickKnob.style.transform = "translate(0px, 0px)";
+  }
+}
 
 /* ============================== Helpers ============================== */
 
@@ -960,9 +987,10 @@ function shoot() {
   }
 }
 
+const WEAPON_KEY_BY_SLOT = { 1: "cannon", 2: "laser", 3: "missile", 4: "lightning", 5: "mines" };
+
 function switchWeapon(numKey) {
-  const map = { 1: "cannon", 2: "laser", 3: "missile", 4: "lightning", 5: "mines" };
-  const key = map[numKey];
+  const key = WEAPON_KEY_BY_SLOT[numKey];
   if (!key) return;
   const wp = player.weapons[key];
   if (!wp.owned) {
@@ -1621,6 +1649,7 @@ function winWave() {
   const isRecord = saveHighScoreIfBetter();
   el.winRecord.hidden = !isRecord;
   el.winScreen.hidden = false;
+  setTouchControlsVisible(false);
   sfx.play("win");
 }
 
@@ -1917,6 +1946,7 @@ function gameOver() {
   const isRecord = saveHighScoreIfBetter();
   el.gameoverRecord.hidden = !isRecord;
   el.gameoverScreen.hidden = false;
+  setTouchControlsVisible(false);
   sfx.play("gameover");
 }
 
@@ -2461,6 +2491,15 @@ function updateHud() {
   if (boss) {
     el.bossFill.style.width = `${clamp((boss.hp / boss.maxHp) * 100, 0, 100)}%`;
   }
+
+  if (isTouchDevice) {
+    el.touchUltBtn.classList.toggle("ready", player.ultimateCharge >= 100);
+    for (const btn of el.touchWeaponBtns) {
+      const weaponKey = WEAPON_KEY_BY_SLOT[btn.dataset.weapon];
+      btn.classList.toggle("active", weaponKey === player.activeWeapon);
+      btn.classList.toggle("owned", !!player.weapons[weaponKey].owned);
+    }
+  }
 }
 
 /* ============================== Main loop ============================== */
@@ -2571,13 +2610,117 @@ window.addEventListener("keyup", (e) => {
   keys[e.key.toLowerCase()] = false;
 });
 
+/* ============================== Touch controls (mobile) ============================== */
+
+if (isTouchDevice) {
+  const JOY_RADIUS = 42; // px the knob can travel before the direction maxes out
+  const JOY_DEADZONE = 0.35; // fraction of radius before a direction registers
+  let joyPointerId = null;
+  let joyCenter = { x: 0, y: 0 };
+
+  function updateJoystick(clientX, clientY) {
+    const dx = clientX - joyCenter.x;
+    const dy = clientY - joyCenter.y;
+    const dist = Math.hypot(dx, dy);
+    const clampedDist = Math.min(dist, JOY_RADIUS);
+    const angle = Math.atan2(dy, dx);
+    const kx = Math.cos(angle) * clampedDist;
+    const ky = Math.sin(angle) * clampedDist;
+    el.touchJoystickKnob.style.transform = `translate(${kx}px, ${ky}px)`;
+
+    const nx = dist > 0 ? (dx / dist) * (clampedDist / JOY_RADIUS) : 0;
+    const ny = dist > 0 ? (dy / dist) * (clampedDist / JOY_RADIUS) : 0;
+    keys["arrowleft"] = nx < -JOY_DEADZONE;
+    keys["arrowright"] = nx > JOY_DEADZONE;
+    keys["arrowup"] = ny < -JOY_DEADZONE;
+    keys["arrowdown"] = ny > JOY_DEADZONE;
+  }
+
+  function releaseJoystick() {
+    joyPointerId = null;
+    el.touchJoystick.classList.remove("active");
+    el.touchJoystickKnob.style.transform = "translate(0px, 0px)";
+    keys["arrowleft"] = false;
+    keys["arrowright"] = false;
+    keys["arrowup"] = false;
+    keys["arrowdown"] = false;
+  }
+
+  el.touchJoystick.addEventListener("pointerdown", (e) => {
+    if (state !== "playing") return;
+    joyPointerId = e.pointerId;
+    try {
+      el.touchJoystick.setPointerCapture(e.pointerId);
+    } catch (err) {
+      /* best-effort — some browsers reject capture on synthetic/edge-case
+         pointers; the joystick still works via pointermove on the element. */
+    }
+    const rect = el.touchJoystick.getBoundingClientRect();
+    joyCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    el.touchJoystick.classList.add("active");
+    updateJoystick(e.clientX, e.clientY);
+    e.preventDefault();
+  });
+
+  el.touchJoystick.addEventListener("pointermove", (e) => {
+    if (e.pointerId !== joyPointerId) return;
+    updateJoystick(e.clientX, e.clientY);
+    e.preventDefault();
+  });
+
+  el.touchJoystick.addEventListener("pointerup", (e) => {
+    if (e.pointerId !== joyPointerId) return;
+    releaseJoystick();
+  });
+
+  el.touchJoystick.addEventListener("pointercancel", (e) => {
+    if (e.pointerId !== joyPointerId) return;
+    releaseJoystick();
+  });
+
+  el.touchFireBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    keys[" "] = true;
+  });
+  const releaseFire = () => {
+    keys[" "] = false;
+  };
+  el.touchFireBtn.addEventListener("pointerup", releaseFire);
+  el.touchFireBtn.addEventListener("pointercancel", releaseFire);
+  el.touchFireBtn.addEventListener("pointerleave", releaseFire);
+
+  el.touchDashBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    if (state === "playing") tryDash();
+  });
+
+  el.touchUltBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    if (state === "playing") useUltimate();
+  });
+
+  el.touchPauseBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    togglePause();
+  });
+
+  for (const btn of el.touchWeaponBtns) {
+    btn.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      if (state === "playing") switchWeapon(btn.dataset.weapon);
+    });
+  }
+}
+
 function togglePause() {
   if (state === "playing") {
     state = "paused";
     el.pauseScreen.hidden = false;
+    setTouchControlsVisible(false);
   } else if (state === "paused") {
     state = "playing";
     el.pauseScreen.hidden = true;
+    setTouchControlsVisible(true);
   }
 }
 
@@ -2588,6 +2731,7 @@ el.startBtn.addEventListener("click", () => {
   el.startScreen.hidden = true;
   resetGame();
   state = "playing";
+  setTouchControlsVisible(true);
 });
 
 el.resumeBtn.addEventListener("click", togglePause);
@@ -2597,12 +2741,14 @@ el.restartBtn.addEventListener("click", () => {
   el.gameoverScreen.hidden = true;
   resetGame();
   state = "playing";
+  setTouchControlsVisible(true);
 });
 
 el.nextLevelBtn.addEventListener("click", () => {
   el.winScreen.hidden = true;
   advanceToNextWave();
   state = "playing";
+  setTouchControlsVisible(true);
 });
 
 /* ============================== Yandex Games SDK (optional) ============================== */
