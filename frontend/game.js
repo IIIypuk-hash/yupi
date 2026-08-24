@@ -33,6 +33,8 @@ const el = {
   resumeBtn: document.getElementById("resume-btn"),
   restartBtn: document.getElementById("restart-btn"),
   nextLevelBtn: document.getElementById("next-level-btn"),
+  continueAdBtn: document.getElementById("continue-ad-btn"),
+  ultAdBtn: document.getElementById("ult-ad-btn"),
   touchControls: document.getElementById("touch-controls"),
   touchJoystick: document.getElementById("touch-joystick"),
   touchJoystickKnob: document.getElementById("touch-joystick-knob"),
@@ -437,6 +439,7 @@ function newPlayer() {
     dashDirY: -1,
     drones: [],
     tractorTimer: 0,
+    hasUsedContinue: false,
   };
 }
 
@@ -1947,6 +1950,7 @@ function gameOver() {
   const isRecord = saveHighScoreIfBetter();
   el.gameoverRecord.hidden = !isRecord;
   el.gameoverScreen.hidden = false;
+  el.continueAdBtn.hidden = player.hasUsedContinue;
   setTouchControlsVisible(false);
   notifyGameplay(false);
   sfx.play("gameover");
@@ -2718,6 +2722,7 @@ function togglePause() {
   if (state === "playing") {
     state = "paused";
     el.pauseScreen.hidden = false;
+    el.ultAdBtn.hidden = player.ultimateCharge >= 100;
     setTouchControlsVisible(false);
     notifyGameplay(false);
   } else if (state === "paused") {
@@ -2743,19 +2748,53 @@ el.resumeBtn.addEventListener("click", togglePause);
 
 el.restartBtn.addEventListener("click", () => {
   ensureAudio();
-  el.gameoverScreen.hidden = true;
-  resetGame();
-  state = "playing";
-  setTouchControlsVisible(true);
-  notifyGameplay(true);
+  // Natural break: state is already "gameover" (not "playing"), so showing
+  // an interstitial here can't interrupt active gameplay.
+  maybeShowInterstitial(() => {
+    el.gameoverScreen.hidden = true;
+    resetGame();
+    state = "playing";
+    setTouchControlsVisible(true);
+    notifyGameplay(true);
+  });
 });
 
 el.nextLevelBtn.addEventListener("click", () => {
-  el.winScreen.hidden = true;
-  advanceToNextWave();
-  state = "playing";
-  setTouchControlsVisible(true);
-  notifyGameplay(true);
+  // Natural break: state is already "win" (not "playing") after a boss kill.
+  maybeShowInterstitial(() => {
+    el.winScreen.hidden = true;
+    advanceToNextWave();
+    state = "playing";
+    setTouchControlsVisible(true);
+    notifyGameplay(true);
+  });
+});
+
+el.continueAdBtn.addEventListener("click", () => {
+  ensureAudio();
+  const revive = () => {
+    player.hasUsedContinue = true;
+    player.hp = clamp(50, 0, player.maxHp);
+    player.invulnTimer = 2000;
+    el.gameoverScreen.hidden = true;
+    el.continueAdBtn.hidden = true;
+    state = "playing";
+    setTouchControlsVisible(true);
+    notifyGameplay(true);
+    sfx.play("powerup");
+  };
+  showRewardedVideo(revive, revive);
+});
+
+el.ultAdBtn.addEventListener("click", () => {
+  if (player.ultimateCharge >= 100) return;
+  ensureAudio();
+  const grant = () => {
+    player.ultimateCharge = 100;
+    flash("УЛЬТ ЗАРЯЖЕН!", "#fde68a", 1200);
+    sfx.play("powerup");
+  };
+  showRewardedVideo(grant, grant);
 });
 
 /* ============================== Yandex Games SDK (optional) ============================== */
@@ -2773,6 +2812,97 @@ function notifyGameplay(active) {
     else api.stop();
   } catch (err) {
     /* best-effort — never let this break the game */
+  }
+}
+
+/* ============================== Monetization (ads) ============================== */
+
+/**
+ * Shows Yandex's fullscreen interstitial at a natural break (restart /
+ * next wave — both already happen from a non-"playing" state). The
+ * platform itself throttles how often this can actually appear, so it's
+ * safe to call at every eligible breakpoint. `onDone` always fires exactly
+ * once — whether or not an ad actually showed (no SDK, no ad ready, a
+ * real close, or an error) — so the game never gets stuck waiting on it.
+ *
+ * Also guarded by a timeout: in testing, a loaded-but-standalone SDK (no
+ * real ad inventory outside the actual Yandex iframe) called neither
+ * onClose nor onError at all, leaving the player stuck on a menu forever.
+ * Interstitials are short, so 15s is a safe margin that won't cut off a
+ * real one but still recovers if the platform ever goes quiet on us.
+ */
+function maybeShowInterstitial(onDone) {
+  try {
+    const adv = window.ysdk && window.ysdk.adv;
+    if (!adv || typeof adv.showFullscreenAdv !== "function") {
+      onDone();
+      return;
+    }
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      onDone();
+    };
+    const timeoutId = setTimeout(finish, 15000);
+    adv.showFullscreenAdv({
+      onClose: () => {
+        clearTimeout(timeoutId);
+        finish();
+      },
+      onError: () => {
+        clearTimeout(timeoutId);
+        finish();
+      },
+    });
+  } catch (err) {
+    onDone();
+  }
+}
+
+/**
+ * Shows a rewarded video ad. `onRewarded` fires ONLY on the SDK's own
+ * onRewarded callback — never on a mere close — so a player can't skip
+ * the ad and still get the reward. `onUnavailable` covers real failures,
+ * simply not running on Yandex at all (local dev — without it these
+ * buttons would be untestable outside the platform, and handing out the
+ * reward for free off-platform is harmless), AND a safety timeout: rewarded
+ * videos can legitimately run 30s+, so this waits a generous 60s before
+ * giving up — long enough to never cut off a real ad, but still recovers
+ * instead of leaving the player stuck if the platform never calls back at
+ * all (observed exactly that with a loaded-but-standalone SDK in testing).
+ */
+function showRewardedVideo(onRewarded, onUnavailable) {
+  try {
+    const adv = window.ysdk && window.ysdk.adv;
+    if (!adv || typeof adv.showRewardedVideo !== "function") {
+      onUnavailable();
+      return;
+    }
+    let done = false;
+    const finishUnavailable = () => {
+      if (done) return;
+      done = true;
+      onUnavailable();
+    };
+    const finishRewarded = () => {
+      if (done) return;
+      done = true;
+      onRewarded();
+    };
+    const timeoutId = setTimeout(finishUnavailable, 60000);
+    adv.showRewardedVideo({
+      onRewarded: () => {
+        clearTimeout(timeoutId);
+        finishRewarded();
+      },
+      onError: () => {
+        clearTimeout(timeoutId);
+        finishUnavailable();
+      },
+    });
+  } catch (err) {
+    onUnavailable();
   }
 }
 

@@ -244,6 +244,17 @@ canvas {
   transform: translateY(0);
 }
 
+.btn-ad {
+  border-color: #fde68a;
+  background: rgba(245, 158, 11, 0.12);
+  font-size: 13px;
+}
+
+.btn-ad:hover {
+  background: rgba(245, 158, 11, 0.25);
+  border-color: #fde68a;
+}
+
 /* ---------- Touch controls (mobile) ---------- */
 #touch-controls[hidden],
 #touch-controls.touch-inactive {
