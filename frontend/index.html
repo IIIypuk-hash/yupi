@@ -21,9 +21,28 @@
        'unsafe-inline' (very plausible on a platform hosting third-party
        games) silently blocks — the script itself loads fine, but the
        handler never fires, which looks exactly like the debug panel's "W"
-       (waiting forever) state we actually hit in production. Attaching the
-       same callback via addEventListener from a normal <script> block below
-       is functionally identical but isn't affected by that CSP directive.
+       (waiting forever) state we hit in production.
+
+       Revision #3 (after a load/addEventListener version STILL intermittently
+       showed "W" with no "ready" call at all in the parent-frame log): the
+       script tag previously had `async`, and the addEventListener("load", ...)
+       was attached from the *next* script block. That's a race — an async
+       script can finish downloading and fire its "load" event as soon as the
+       bytes arrive, which can happen before the parser even reaches the next
+       <script> block that calls addEventListener. When /sdk.js was served
+       fast enough (cached, warm connection), "load" fired before anyone was
+       listening for it, so initSDK() never ran — silently, no error, nothing
+       in the console. That matches exactly what we saw: it worked once
+       ("ready after 2 ms") and failed another time (stuck on "W", 45s
+       timeout, no "ready" line at all) with no code change in between.
+
+       Fix: no `async` here. A plain (non-async, non-defer) script is
+       downloaded AND fully executed, in document order, before the browser
+       moves on to the next <script> block — guaranteed by the HTML spec, not
+       a timing coincidence. So by the time the block below runs, either
+       window.YaGames is already defined (script loaded fine) or it isn't
+       (network error / 404) — a plain synchronous check covers both cases,
+       no event listener needed at all.
 
        Deliberately NOT handled inside game.js: that file is large, and if
        anything in it threw before reaching its boot section, the mandatory
@@ -33,10 +52,9 @@
        anywhere else in the game.
 
        Locally (plain `python main.py`, no Yandex), "/sdk.js" 404s unless
-       backend/app.py's dev-only proxy route is serving it — either way,
-       the error listener below falls back cleanly so the game always
-       works. -->
-  <script async id="ya-sdk-script" src="/sdk.js"></script>
+       backend/app.py's dev-only proxy route is serving it — either way, the
+       fallback below runs cleanly so the game always works. -->
+  <script id="ya-sdk-script" src="/sdk.js"></script>
   <script>
     window.ysdk = null;
     // Req. 2.14: language must be read from the SDK at launch (not
@@ -69,9 +87,11 @@
         initSDKFallback();
       }
     }
-    var sdkScriptEl = document.getElementById("ya-sdk-script");
-    sdkScriptEl.addEventListener("load", initSDK);
-    sdkScriptEl.addEventListener("error", initSDKFallback);
+    if (typeof YaGames !== "undefined") {
+      initSDK();
+    } else {
+      initSDKFallback();
+    }
   </script>
 </head>
 <body>
