@@ -2879,28 +2879,35 @@ function notifyGameplay(active) {
 function maybeShowInterstitial(onDone) {
   try {
     const adv = window.ysdk && window.ysdk.adv;
+    console.log("[Ads] maybeShowInterstitial: adv =", adv, "showFullscreenAdv =", adv && typeof adv.showFullscreenAdv);
     if (!adv || typeof adv.showFullscreenAdv !== "function") {
+      console.log("[Ads] maybeShowInterstitial: no adv API, calling onDone immediately");
       onDone();
       return;
     }
     let done = false;
-    const finish = () => {
+    const finish = (reason) => {
+      console.log("[Ads] maybeShowInterstitial: finish() reason =", reason, "already done =", done);
       if (done) return;
       done = true;
       onDone();
     };
-    const timeoutId = setTimeout(finish, 15000);
+    const timeoutId = setTimeout(() => finish("timeout-15s"), 15000);
     adv.showFullscreenAdv({
-      onClose: () => {
+      onOpen: () => console.log("[Ads] maybeShowInterstitial: onOpen"),
+      onClose: (wasShown) => {
+        console.log("[Ads] maybeShowInterstitial: onClose, wasShown =", wasShown);
         clearTimeout(timeoutId);
-        finish();
+        finish("onClose");
       },
-      onError: () => {
+      onError: (err) => {
+        console.log("[Ads] maybeShowInterstitial: onError", err);
         clearTimeout(timeoutId);
-        finish();
+        finish("onError");
       },
     });
   } catch (err) {
+    console.log("[Ads] maybeShowInterstitial: threw", err);
     onDone();
   }
 }
@@ -2925,40 +2932,50 @@ function maybeShowInterstitial(onDone) {
 function showRewardedVideo(onRewarded, onUnavailable) {
   try {
     const adv = window.ysdk && window.ysdk.adv;
+    console.log("[Ads] showRewardedVideo: adv =", adv, "showRewardedVideo =", adv && typeof adv.showRewardedVideo);
     if (!adv || typeof adv.showRewardedVideo !== "function") {
+      console.log("[Ads] showRewardedVideo: no adv API, calling onUnavailable immediately");
       onUnavailable();
       return;
     }
     let done = false;
-    const finishUnavailable = () => {
+    const finishUnavailable = (reason) => {
+      console.log("[Ads] showRewardedVideo: finishUnavailable() reason =", reason, "already done =", done);
       if (done) return;
       done = true;
       onUnavailable();
     };
-    const finishRewarded = () => {
+    const finishRewarded = (reason) => {
+      console.log("[Ads] showRewardedVideo: finishRewarded() reason =", reason, "already done =", done);
       if (done) return;
       done = true;
       onRewarded();
     };
-    const timeoutId = setTimeout(finishUnavailable, 60000);
+    const timeoutId = setTimeout(() => finishUnavailable("timeout-60s"), 60000);
+    console.log("[Ads] showRewardedVideo: calling adv.showRewardedVideo now");
     adv.showRewardedVideo({
+      onOpen: () => console.log("[Ads] showRewardedVideo: onOpen"),
       onRewarded: () => {
+        console.log("[Ads] showRewardedVideo: onRewarded fired");
         clearTimeout(timeoutId);
-        finishRewarded();
+        finishRewarded("onRewarded");
       },
-      onClose: () => {
+      onClose: (wasShown) => {
         // Fires both after a real reward (finishRewarded already ran and
         // set done=true, so this is a no-op) and when nothing was shown at
         // all — the latter is the case this handler actually exists for.
+        console.log("[Ads] showRewardedVideo: onClose, wasShown =", wasShown);
         clearTimeout(timeoutId);
-        finishUnavailable();
+        finishUnavailable("onClose");
       },
-      onError: () => {
+      onError: (err) => {
+        console.log("[Ads] showRewardedVideo: onError", err);
         clearTimeout(timeoutId);
-        finishUnavailable();
+        finishUnavailable("onError");
       },
     });
   } catch (err) {
+    console.log("[Ads] showRewardedVideo: threw", err);
     onUnavailable();
   }
 }
