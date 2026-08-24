@@ -2605,8 +2605,27 @@ el.nextLevelBtn.addEventListener("click", () => {
   state = "playing";
 });
 
+/* ============================== Yandex Games SDK (optional) ============================== */
+
+let ysdk = null;
+
+function initYandexSdk() {
+  if (!window.YaGames) return; // not running on/near the Yandex platform — fine, just skip
+  window.YaGames.init()
+    .then((sdk) => {
+      ysdk = sdk;
+      window.ysdk = sdk;
+      // Tells Yandex's loading screen the game is playable now so it can hide itself.
+      sdk.features && sdk.features.LoadingAPI && sdk.features.LoadingAPI.ready();
+    })
+    .catch(() => {
+      /* SDK is best-effort — the game must work fine without it (e.g. local dev). */
+    });
+}
+
 /* ============================== Boot ============================== */
 
 initStars();
 initNebula();
+initYandexSdk();
 requestAnimationFrame(loop);
