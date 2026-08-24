@@ -5,4 +5,4 @@ services:
     container_name: space-fighter
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "6000:6000"
