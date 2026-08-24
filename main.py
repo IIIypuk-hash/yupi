@@ -8,7 +8,7 @@ import uvicorn
 from backend.app import app
 
 HOST = "127.0.0.1"
-PORT = 6000
+PORT = 6010
 
 
 def open_browser() -> None:

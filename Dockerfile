@@ -19,11 +19,11 @@ COPY main.py .
 RUN useradd --create-home --uid 1000 appuser
 USER appuser
 
-EXPOSE 6000
+EXPOSE 6010
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:6000/')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:6010/')" || exit 1
 
 # В контейнере не нужно открывать браузер (main.py это делает) —
 # запускаем uvicorn напрямую и слушаем на всех интерфейсах.
-CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "6000"]
+CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "6010"]
