@@ -1650,6 +1650,7 @@ function winWave() {
   el.winRecord.hidden = !isRecord;
   el.winScreen.hidden = false;
   setTouchControlsVisible(false);
+  notifyGameplay(false);
   sfx.play("win");
 }
 
@@ -1947,6 +1948,7 @@ function gameOver() {
   el.gameoverRecord.hidden = !isRecord;
   el.gameoverScreen.hidden = false;
   setTouchControlsVisible(false);
+  notifyGameplay(false);
   sfx.play("gameover");
 }
 
@@ -2717,10 +2719,12 @@ function togglePause() {
     state = "paused";
     el.pauseScreen.hidden = false;
     setTouchControlsVisible(false);
+    notifyGameplay(false);
   } else if (state === "paused") {
     state = "playing";
     el.pauseScreen.hidden = true;
     setTouchControlsVisible(true);
+    notifyGameplay(true);
   }
 }
 
@@ -2732,6 +2736,7 @@ el.startBtn.addEventListener("click", () => {
   resetGame();
   state = "playing";
   setTouchControlsVisible(true);
+  notifyGameplay(true);
 });
 
 el.resumeBtn.addEventListener("click", togglePause);
@@ -2742,6 +2747,7 @@ el.restartBtn.addEventListener("click", () => {
   resetGame();
   state = "playing";
   setTouchControlsVisible(true);
+  notifyGameplay(true);
 });
 
 el.nextLevelBtn.addEventListener("click", () => {
@@ -2749,29 +2755,29 @@ el.nextLevelBtn.addEventListener("click", () => {
   advanceToNextWave();
   state = "playing";
   setTouchControlsVisible(true);
+  notifyGameplay(true);
 });
 
 /* ============================== Yandex Games SDK (optional) ============================== */
 
-let ysdk = null;
-
-function initYandexSdk() {
-  if (!window.YaGames) return; // not running on/near the Yandex platform — fine, just skip
-  window.YaGames.init()
-    .then((sdk) => {
-      ysdk = sdk;
-      window.ysdk = sdk;
-      // Tells Yandex's loading screen the game is playable now so it can hide itself.
-      sdk.features && sdk.features.LoadingAPI && sdk.features.LoadingAPI.ready();
-    })
-    .catch(() => {
-      /* SDK is best-effort — the game must work fine without it (e.g. local dev). */
-    });
+// The mandatory YaGames.init() + LoadingAPI.ready() call lives in an inline
+// <script> in index.html, deliberately independent of this file (see the
+// comment there for why). This just marks gameplay start/stop for Yandex's
+// GameplayAPI, using whatever `window.ysdk` that other script set up — safe
+// no-op if it's not there yet (still initializing) or we're not on Yandex.
+function notifyGameplay(active) {
+  try {
+    const api = window.ysdk && window.ysdk.features && window.ysdk.features.GameplayAPI;
+    if (!api) return;
+    if (active) api.start();
+    else api.stop();
+  } catch (err) {
+    /* best-effort — never let this break the game */
+  }
 }
 
 /* ============================== Boot ============================== */
 
 initStars();
 initNebula();
-initYandexSdk();
 requestAnimationFrame(loop);

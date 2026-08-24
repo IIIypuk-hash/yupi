@@ -4,13 +4,34 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Space Fighter</title>
+  <meta name="description" content="Орбитальный Шторм — бесплатный аркадный космический шутер онлайн: волны врагов, 5 видов оружия, боссы с уникальными атаками, рывок и суперудары. Играйте в браузере." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="static/style.css" />
-  <!-- Yandex Games SDK: safe to include even outside Yandex — game.js only
-       touches `YaGames` if this script actually loaded (see the boot section). -->
+  <!-- Yandex Games SDK. Deliberately NOT handled inside game.js: that file is
+       large, and if anything in it threw before reaching its boot section,
+       the mandatory ready() call below would simply never fire — which is
+       exactly what moderation flags as "SDK not embedded". This tiny inline
+       script is fully independent of game.js and can't be taken down by a
+       bug anywhere else in the game. Safe to include even outside Yandex —
+       it no-ops if YaGames never loads (e.g. local dev without internet). -->
   <script src="https://yandex.ru/games/sdk/v2"></script>
+  <script>
+    window.ysdk = null;
+    if (window.YaGames) {
+      window.YaGames.init()
+        .then(function (sdk) {
+          window.ysdk = sdk;
+          if (sdk.features && sdk.features.LoadingAPI) {
+            sdk.features.LoadingAPI.ready();
+          }
+        })
+        .catch(function () {
+          /* best-effort — the game must run fine without the SDK too */
+        });
+    }
+  </script>
 </head>
 <body>
   <div id="game-wrap">
