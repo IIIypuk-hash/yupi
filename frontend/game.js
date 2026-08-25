@@ -7,6 +7,11 @@ const ctx = canvas.getContext("2d");
 const W = canvas.width;
 const H = canvas.height;
 
+// Req. 1.6.2.7: interacting with the game field must not open a context
+// menu (CSS user-select alone doesn't stop the browser's own right-click
+// "save image as" menu on a <canvas>).
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
 const el = {
   hpFill: document.getElementById("hp-fill"),
   ultFill: document.getElementById("ult-fill"),
@@ -87,7 +92,7 @@ function ensureAudio() {
   try {
     if (!audioCtx) {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    } else if (audioCtx.state === "suspended") {
+    } else if (audioCtx.state === "suspended" && audioSuspendReasons.size === 0) {
       audioCtx.resume();
     }
   } catch (e) {
@@ -95,6 +100,29 @@ function ensureAudio() {
   }
   initMusic();
 }
+
+// Moderation requirements 1.3 ("при потере фокуса звук из игры
+// останавливается") and 4.7 ("при показе полноэкранной рекламы звук... на
+// паузе") both boil down to "suspend all audio for as long as reason X
+// applies" — tracked as a set so two reasons (tab hidden AND an ad showing
+// at once) don't fight over the AudioContext's suspended/running state.
+// Suspending the whole context (rather than just the music gain) also
+// silences any sfx.play() that might fire while backgrounded.
+const audioSuspendReasons = new Set();
+function suspendAudioFor(reason) {
+  audioSuspendReasons.add(reason);
+  if (audioCtx && audioCtx.state === "running") audioCtx.suspend();
+}
+function releaseAudioSuspend(reason) {
+  audioSuspendReasons.delete(reason);
+  if (audioSuspendReasons.size === 0 && !muted && audioCtx && audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) suspendAudioFor("hidden");
+  else releaseAudioSuspend("hidden");
+});
 
 const SFX_MIN_GAP = {
   shoot: 70, zap: 90, mine: 90, hit: 70, dash: 150,
@@ -2592,8 +2620,18 @@ function loop(now) {
 
 /* ============================== Input ============================== */
 
+// Maps e.code (physical key position, layout-independent) to the same
+// canonical "w"/"a"/"s"/"d" flags the rest of the file already reads via
+// keys[...] — Cyrillic (ЙЦУКЕН) layout turns the WASD *characters* into
+// "цфыв", which is exactly what moderation requirement 1.6.2.4 calls out
+// ("управление не зависит от раскладки"): on that layout, movement only
+// worked via arrow keys, silently dropping half of the game's own
+// advertised default control scheme ("Стрелки / WASD — движение").
+const WASD_CODE_TO_KEY = { KeyW: "w", KeyA: "a", KeyS: "s", KeyD: "d" };
+
 window.addEventListener("keydown", (e) => {
   keys[e.key.toLowerCase()] = true;
+  if (WASD_CODE_TO_KEY[e.code]) keys[WASD_CODE_TO_KEY[e.code]] = true;
   if (e.key === " ") e.preventDefault();
   // e.code is the physical key position, independent of keyboard layout —
   // e.key would be e.g. "з" for the P key and "ь" for the M key on a
@@ -2620,6 +2658,7 @@ window.addEventListener("keydown", (e) => {
 
 window.addEventListener("keyup", (e) => {
   keys[e.key.toLowerCase()] = false;
+  if (WASD_CODE_TO_KEY[e.code]) keys[WASD_CODE_TO_KEY[e.code]] = false;
 });
 
 /* ============================== Touch controls (mobile) ============================== */
@@ -2923,10 +2962,13 @@ function maybeShowInterstitial(onDone) {
       done = true;
       unsubscribeResume();
       clearTimeout(timeoutId);
+      releaseAudioSuspend("ad");
       onDone();
     };
     const unsubscribeResume = onNextGameResume(() => finish("game_api_resume"));
     const timeoutId = setTimeout(() => finish("timeout-15s"), 15000);
+    // Req. 4.7: sound must pause for the duration of a fullscreen ad.
+    suspendAudioFor("ad");
     adv.showFullscreenAdv({
       onOpen: () => console.log("[Ads] maybeShowInterstitial: onOpen"),
       onClose: (wasShown) => {
@@ -2940,6 +2982,7 @@ function maybeShowInterstitial(onDone) {
     });
   } catch (err) {
     console.log("[Ads] maybeShowInterstitial: threw", err);
+    releaseAudioSuspend("ad"); // no-op if suspendAudioFor was never reached
     onDone();
   }
 }
@@ -2986,6 +3029,7 @@ function showRewardedVideo(onRewarded, onUnavailable) {
       done = true;
       unsubscribeResume();
       clearTimeout(timeoutId);
+      releaseAudioSuspend("ad");
       onUnavailable();
     };
     const finishRewarded = (reason) => {
@@ -2994,6 +3038,7 @@ function showRewardedVideo(onRewarded, onUnavailable) {
       done = true;
       unsubscribeResume();
       clearTimeout(timeoutId);
+      releaseAudioSuspend("ad");
       onRewarded();
     };
     // Fast path: resolve as soon as the platform hands control back (see
@@ -3004,6 +3049,8 @@ function showRewardedVideo(onRewarded, onUnavailable) {
     // design (see their own comments), so either path grants the reward.
     const unsubscribeResume = onNextGameResume(() => finishUnavailable("game_api_resume"));
     const timeoutId = setTimeout(() => finishUnavailable("timeout-20s"), 20000);
+    // Req. 4.7: sound must pause for the duration of a rewarded video.
+    suspendAudioFor("ad");
     console.log("[Ads] showRewardedVideo: calling adv.showRewardedVideo now");
     adv.showRewardedVideo({
       onOpen: () => console.log("[Ads] showRewardedVideo: onOpen"),
@@ -3025,6 +3072,7 @@ function showRewardedVideo(onRewarded, onUnavailable) {
     });
   } catch (err) {
     console.log("[Ads] showRewardedVideo: threw", err);
+    releaseAudioSuspend("ad"); // no-op if suspendAudioFor was never reached
     onUnavailable();
   }
 }

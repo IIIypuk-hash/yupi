@@ -25,6 +25,13 @@ html, body {
   color: var(--text);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
   overflow: hidden;
+  /* Req. 1.6.1.8 / 1.6.2.7: interacting with the game field (long-tap on
+     mobile, click-drag or right-click on desktop) must not select text or
+     open a context menu. -webkit-touch-callout also blocks iOS's own
+     long-press "save image / copy" menu, which user-select alone doesn't. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 body {
