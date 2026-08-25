@@ -38,8 +38,9 @@ const el = {
   resumeBtn: document.getElementById("resume-btn"),
   restartBtn: document.getElementById("restart-btn"),
   nextLevelBtn: document.getElementById("next-level-btn"),
-  continueAdBtn: document.getElementById("continue-ad-btn"),
+  useExtraLifeBtn: document.getElementById("use-extra-life-btn"),
   ultAdBtn: document.getElementById("ult-ad-btn"),
+  extraLifeAdBtn: document.getElementById("extra-life-ad-btn"),
   touchControls: document.getElementById("touch-controls"),
   touchJoystick: document.getElementById("touch-joystick"),
   touchJoystickKnob: document.getElementById("touch-joystick-knob"),
@@ -467,7 +468,10 @@ function newPlayer() {
     dashDirY: -1,
     drones: [],
     tractorTimer: 0,
-    hasUsedContinue: false,
+    // Earned ahead of time via extra-life-ad-btn (pause menu), not at the
+    // moment of death — see gameOver()'s comment for why that ordering
+    // matters for req. 4.5.2.
+    hasExtraLife: false,
   };
 }
 
@@ -1978,7 +1982,10 @@ function gameOver() {
   const isRecord = saveHighScoreIfBetter();
   el.gameoverRecord.hidden = !isRecord;
   el.gameoverScreen.hidden = false;
-  el.continueAdBtn.hidden = player.hasUsedContinue;
+  // No ad is offered here — only shown if an extra life was already earned
+  // earlier (pause menu), so watching an ad is never a condition of
+  // continuing right at the point of failure (req. 4.5.2).
+  el.useExtraLifeBtn.hidden = !player.hasExtraLife;
   setTouchControlsVisible(false);
   notifyGameplay(false);
   sfx.play("gameover");
@@ -2768,6 +2775,7 @@ function togglePause() {
     state = "paused";
     el.pauseScreen.hidden = false;
     el.ultAdBtn.hidden = player.ultimateCharge >= 100;
+    el.extraLifeAdBtn.hidden = player.hasExtraLife;
     setTouchControlsVisible(false);
     notifyGameplay(false);
   } else if (state === "paused") {
@@ -2823,9 +2831,9 @@ el.restartBtn.addEventListener("click", () => {
   ensureAudio();
   // Natural break: state is already "gameover" (not "playing"), so showing
   // an interstitial here can't interrupt active gameplay. Both gameover
-  // buttons are disabled together since only one ad can be in flight at a
-  // time on the platform's end.
-  withAdBusy([el.restartBtn, el.continueAdBtn], el.restartBtn, "Загрузка рекламы…", (restore) => {
+  // buttons are disabled together so the player can't hit "use extra life"
+  // while this screen is about to be replaced anyway.
+  withAdBusy([el.restartBtn, el.useExtraLifeBtn], el.restartBtn, "Загрузка рекламы…", (restore) => {
     maybeShowInterstitial(() => {
       restore();
       el.gameoverScreen.hidden = true;
@@ -2851,29 +2859,45 @@ el.nextLevelBtn.addEventListener("click", () => {
   });
 });
 
-el.continueAdBtn.addEventListener("click", () => {
+// Watching this ad only ever grants a banked extra life — it's offered
+// during the pause menu (mid-run, well before any death), never at the
+// gameover screen itself. That ordering is what keeps this compliant with
+// req. 4.5.2 ("награда... не должна влиять на возможность продолжить
+// игровой процесс"): whether the player has a life banked is already
+// decided by the time they die, so watching an ad is never a condition of
+// continuing right at the point of failure. useExtraLifeBtn below (on the
+// gameover screen) just spends what was already earned — no ad involved.
+el.extraLifeAdBtn.addEventListener("click", () => {
+  if (player.hasExtraLife) return;
   ensureAudio();
-  withAdBusy([el.restartBtn, el.continueAdBtn], el.continueAdBtn, "Загрузка рекламы…", (restore) => {
-    const revive = () => {
+  withAdBusy([el.extraLifeAdBtn], el.extraLifeAdBtn, "Загрузка рекламы…", (restore) => {
+    const grant = () => {
       restore();
-      player.hasUsedContinue = true;
-      player.hp = clamp(50, 0, player.maxHp);
-      player.invulnTimer = 2000;
-      el.gameoverScreen.hidden = true;
-      el.continueAdBtn.hidden = true;
-      state = "playing";
-      setTouchControlsVisible(true);
-      notifyGameplay(true);
+      player.hasExtraLife = true;
+      el.extraLifeAdBtn.hidden = true;
+      flash("ДОП. ЖИЗНЬ ПОЛУЧЕНА!", "#fde68a", 1200);
       sfx.play("powerup");
     };
-    // onUnavailable === onRewarded here on purpose (unchanged from before):
-    // when there's genuinely no ad to show (or no SDK at all, e.g. local
-    // dev), the player still gets the revive rather than being left with
-    // nothing after being promised one. What changed is only how fast
-    // "unavailable" is now detected — see showRewardedVideo's onClose
-    // handling — so this no longer requires waiting out the 60s timeout.
-    showRewardedVideo(revive, revive);
+    // onUnavailable === onRewarded on purpose, same reasoning as ultAdBtn
+    // below: when there's genuinely no ad to show (or no SDK at all, e.g.
+    // local dev), the player still gets the bonus rather than being left
+    // with nothing after being promised one.
+    showRewardedVideo(grant, grant);
   });
+});
+
+el.useExtraLifeBtn.addEventListener("click", () => {
+  if (!player.hasExtraLife) return;
+  ensureAudio();
+  player.hasExtraLife = false;
+  player.hp = clamp(50, 0, player.maxHp);
+  player.invulnTimer = 2000;
+  el.gameoverScreen.hidden = true;
+  el.useExtraLifeBtn.hidden = true;
+  state = "playing";
+  setTouchControlsVisible(true);
+  notifyGameplay(true);
+  sfx.play("powerup");
 });
 
 el.ultAdBtn.addEventListener("click", () => {
@@ -2911,28 +2935,6 @@ function notifyGameplay(active) {
 /* ============================== Monetization (ads) ============================== */
 
 /**
- * Subscribes to the SDK's generic `game_api_resume` event — fired once
- * whatever paused gameplay (an ad, in our case) is cleared and control is
- * handed back. Confirmed by a captured [Ads] log to arrive reliably even
- * in the exact case where the ad-specific onRewarded/onClose callbacks
- * were lost (see showRewardedVideo's comment): this is Yandex's own
- * platform-level pause/resume plumbing, not the ad SDK's own per-call
- * callback wiring, so it isn't hit by the same failure. Used as a fast
- * path so the game doesn't have to fall all the way back to a fixed
- * timeout just because the ad-specific callback went missing. Returns an
- * unsubscribe function; safe no-op if `ysdk.on` isn't available at all.
- */
-function onNextGameResume(handler) {
-  const ysdk = window.ysdk;
-  if (!ysdk || typeof ysdk.on !== "function") return () => {};
-  const wrapped = () => handler();
-  ysdk.on("game_api_resume", wrapped);
-  return () => {
-    if (typeof ysdk.off === "function") ysdk.off("game_api_resume", wrapped);
-  };
-}
-
-/**
  * Shows Yandex's fullscreen interstitial at a natural break (restart /
  * next wave — both already happen from a non-"playing" state). The
  * platform itself throttles how often this can actually appear, so it's
@@ -2940,11 +2942,22 @@ function onNextGameResume(handler) {
  * once — whether or not an ad actually showed (no SDK, no ad ready, a
  * real close, or an error) — so the game never gets stuck waiting on it.
  *
- * Resolves via whichever comes first: the ad-specific onClose/onError, the
- * generic game_api_resume fast path (see onNextGameResume above), or —
+ * Resolves via whichever comes first: the ad-specific onClose/onError, or —
  * only as a last-resort safety net — a 15s timeout, a safe margin that
  * won't cut off a real interstitial but still recovers if the platform
  * ever goes fully quiet.
+ *
+ * A previous version also raced this against the SDK's generic
+ * `game_api_resume` event (ysdk.on/off) as a faster fallback signal, since
+ * it was observed to arrive even when onClose/onError didn't. Reverted:
+ * req. 1.19.4 requires game_api_pause/game_api_resume to be handled as a
+ * documented pair with GameplayAPI.stop()/start() called from the
+ * handlers themselves — using resume alone, decoupled from that pairing,
+ * risked failing moderation over the very call meant to make ads feel
+ * more responsive. If the 20s/15s timeout turns out to still be too slow
+ * on the live, moderated game (as opposed to the draft/no-fill case that
+ * motivated this originally), revisit with the full documented pattern
+ * instead of this shortcut.
  */
 function maybeShowInterstitial(onDone) {
   try {
@@ -2960,12 +2973,10 @@ function maybeShowInterstitial(onDone) {
       console.log("[Ads] maybeShowInterstitial: finish() reason =", reason, "already done =", done);
       if (done) return;
       done = true;
-      unsubscribeResume();
       clearTimeout(timeoutId);
       releaseAudioSuspend("ad");
       onDone();
     };
-    const unsubscribeResume = onNextGameResume(() => finish("game_api_resume"));
     const timeoutId = setTimeout(() => finish("timeout-15s"), 15000);
     // Req. 4.7: sound must pause for the duration of a fullscreen ad.
     suspendAudioFor("ad");
@@ -3012,6 +3023,10 @@ function maybeShowInterstitial(onDone) {
  * re-checking after publish. Until/unless it turns out to be fixed on
  * their end, the timeout is kept short (20s, not 60s) specifically so a
  * repeat of this never reads as "nothing happens" for more than that.
+ *
+ * A previous version also raced this against the SDK's generic
+ * `game_api_resume` event as a faster fallback — reverted for the same
+ * req. 1.19.4 reason documented on maybeShowInterstitial above.
  */
 function showRewardedVideo(onRewarded, onUnavailable) {
   try {
@@ -3027,7 +3042,6 @@ function showRewardedVideo(onRewarded, onUnavailable) {
       console.log("[Ads] showRewardedVideo: finishUnavailable() reason =", reason, "already done =", done);
       if (done) return;
       done = true;
-      unsubscribeResume();
       clearTimeout(timeoutId);
       releaseAudioSuspend("ad");
       onUnavailable();
@@ -3036,18 +3050,10 @@ function showRewardedVideo(onRewarded, onUnavailable) {
       console.log("[Ads] showRewardedVideo: finishRewarded() reason =", reason, "already done =", done);
       if (done) return;
       done = true;
-      unsubscribeResume();
       clearTimeout(timeoutId);
       releaseAudioSuspend("ad");
       onRewarded();
     };
-    // Fast path: resolve as soon as the platform hands control back (see
-    // onNextGameResume's comment) instead of only ever via the ad-specific
-    // callbacks below, which are the ones observed to sometimes go silent.
-    // Not distinguishing "rewarded" here doesn't matter in practice — both
-    // buttons that call this treat onUnavailable the same as onRewarded by
-    // design (see their own comments), so either path grants the reward.
-    const unsubscribeResume = onNextGameResume(() => finishUnavailable("game_api_resume"));
     const timeoutId = setTimeout(() => finishUnavailable("timeout-20s"), 20000);
     // Req. 4.7: sound must pause for the duration of a rewarded video.
     suspendAudioFor("ad");

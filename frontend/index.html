@@ -148,6 +148,7 @@
       <h1>ПАУЗА</h1>
       <button id="resume-btn" class="btn">Продолжить</button>
       <button id="ult-ad-btn" class="btn btn-ad">📺 Реклама → полный УЛЬТ</button>
+      <button id="extra-life-ad-btn" class="btn btn-ad">📺 Реклама → доп. жизнь</button>
     </div>
 
     <!-- Game over -->
@@ -155,7 +156,11 @@
       <h1>КОРАБЛЬ УНИЧТОЖЕН</h1>
       <p>Счёт: <span id="final-score">0</span></p>
       <p id="gameover-record" class="record-badge" hidden>🏆 НОВЫЙ РЕКОРД!</p>
-      <button id="continue-ad-btn" class="btn btn-ad">📺 Продолжить (реклама)</button>
+      <!-- Only shown if the player already earned an extra life earlier via
+           extra-life-ad-btn — no ad is requested here, it was already
+           watched before the death happened (req. 4.5.2: the reward must
+           not gate the ability to continue at the point of failure). -->
+      <button id="use-extra-life-btn" class="btn btn-ad">❤️ Воскреснуть (доп. жизнь)</button>
       <button id="restart-btn" class="btn">Заново</button>
     </div>
 
