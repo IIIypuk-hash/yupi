@@ -2872,6 +2872,28 @@ function notifyGameplay(active) {
 /* ============================== Monetization (ads) ============================== */
 
 /**
+ * Subscribes to the SDK's generic `game_api_resume` event — fired once
+ * whatever paused gameplay (an ad, in our case) is cleared and control is
+ * handed back. Confirmed by a captured [Ads] log to arrive reliably even
+ * in the exact case where the ad-specific onRewarded/onClose callbacks
+ * were lost (see showRewardedVideo's comment): this is Yandex's own
+ * platform-level pause/resume plumbing, not the ad SDK's own per-call
+ * callback wiring, so it isn't hit by the same failure. Used as a fast
+ * path so the game doesn't have to fall all the way back to a fixed
+ * timeout just because the ad-specific callback went missing. Returns an
+ * unsubscribe function; safe no-op if `ysdk.on` isn't available at all.
+ */
+function onNextGameResume(handler) {
+  const ysdk = window.ysdk;
+  if (!ysdk || typeof ysdk.on !== "function") return () => {};
+  const wrapped = () => handler();
+  ysdk.on("game_api_resume", wrapped);
+  return () => {
+    if (typeof ysdk.off === "function") ysdk.off("game_api_resume", wrapped);
+  };
+}
+
+/**
  * Shows Yandex's fullscreen interstitial at a natural break (restart /
  * next wave — both already happen from a non-"playing" state). The
  * platform itself throttles how often this can actually appear, so it's
@@ -2879,11 +2901,11 @@ function notifyGameplay(active) {
  * once — whether or not an ad actually showed (no SDK, no ad ready, a
  * real close, or an error) — so the game never gets stuck waiting on it.
  *
- * Also guarded by a timeout: in testing, a loaded-but-standalone SDK (no
- * real ad inventory outside the actual Yandex iframe) called neither
- * onClose nor onError at all, leaving the player stuck on a menu forever.
- * Interstitials are short, so 15s is a safe margin that won't cut off a
- * real one but still recovers if the platform ever goes quiet on us.
+ * Resolves via whichever comes first: the ad-specific onClose/onError, the
+ * generic game_api_resume fast path (see onNextGameResume above), or —
+ * only as a last-resort safety net — a 15s timeout, a safe margin that
+ * won't cut off a real interstitial but still recovers if the platform
+ * ever goes fully quiet.
  */
 function maybeShowInterstitial(onDone) {
   try {
@@ -2899,19 +2921,20 @@ function maybeShowInterstitial(onDone) {
       console.log("[Ads] maybeShowInterstitial: finish() reason =", reason, "already done =", done);
       if (done) return;
       done = true;
+      unsubscribeResume();
+      clearTimeout(timeoutId);
       onDone();
     };
+    const unsubscribeResume = onNextGameResume(() => finish("game_api_resume"));
     const timeoutId = setTimeout(() => finish("timeout-15s"), 15000);
     adv.showFullscreenAdv({
       onOpen: () => console.log("[Ads] maybeShowInterstitial: onOpen"),
       onClose: (wasShown) => {
         console.log("[Ads] maybeShowInterstitial: onClose, wasShown =", wasShown);
-        clearTimeout(timeoutId);
         finish("onClose");
       },
       onError: (err) => {
         console.log("[Ads] maybeShowInterstitial: onError", err);
-        clearTimeout(timeoutId);
         finish("onError");
       },
     });
@@ -2961,21 +2984,31 @@ function showRewardedVideo(onRewarded, onUnavailable) {
       console.log("[Ads] showRewardedVideo: finishUnavailable() reason =", reason, "already done =", done);
       if (done) return;
       done = true;
+      unsubscribeResume();
+      clearTimeout(timeoutId);
       onUnavailable();
     };
     const finishRewarded = (reason) => {
       console.log("[Ads] showRewardedVideo: finishRewarded() reason =", reason, "already done =", done);
       if (done) return;
       done = true;
+      unsubscribeResume();
+      clearTimeout(timeoutId);
       onRewarded();
     };
+    // Fast path: resolve as soon as the platform hands control back (see
+    // onNextGameResume's comment) instead of only ever via the ad-specific
+    // callbacks below, which are the ones observed to sometimes go silent.
+    // Not distinguishing "rewarded" here doesn't matter in practice — both
+    // buttons that call this treat onUnavailable the same as onRewarded by
+    // design (see their own comments), so either path grants the reward.
+    const unsubscribeResume = onNextGameResume(() => finishUnavailable("game_api_resume"));
     const timeoutId = setTimeout(() => finishUnavailable("timeout-20s"), 20000);
     console.log("[Ads] showRewardedVideo: calling adv.showRewardedVideo now");
     adv.showRewardedVideo({
       onOpen: () => console.log("[Ads] showRewardedVideo: onOpen"),
       onRewarded: () => {
         console.log("[Ads] showRewardedVideo: onRewarded fired");
-        clearTimeout(timeoutId);
         finishRewarded("onRewarded");
       },
       onClose: (wasShown) => {
@@ -2983,12 +3016,10 @@ function showRewardedVideo(onRewarded, onUnavailable) {
         // set done=true, so this is a no-op) and when nothing was shown at
         // all — the latter is the case this handler actually exists for.
         console.log("[Ads] showRewardedVideo: onClose, wasShown =", wasShown);
-        clearTimeout(timeoutId);
         finishUnavailable("onClose");
       },
       onError: (err) => {
         console.log("[Ads] showRewardedVideo: onError", err);
-        clearTimeout(timeoutId);
         finishUnavailable("onError");
       },
     });
