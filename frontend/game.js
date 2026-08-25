@@ -2765,7 +2765,16 @@ function withAdBusy(buttons, loadingBtn, loadingText, run) {
   const originalText = loadingBtn.textContent;
   for (const b of buttons) b.disabled = true;
   loadingBtn.textContent = loadingText;
+  // If the platform's own SDK callback goes silent (a real, observed
+  // failure mode — see showRewardedVideo's comment), the safety timeout
+  // still recovers within 20s, but a static "Загрузка рекламы…" sitting
+  // there that whole time reads as frozen. This nudges the text so it's
+  // visibly still counting, not stuck.
+  const reassureTimer = setTimeout(() => {
+    loadingBtn.textContent = loadingText + " (ещё немного)";
+  }, 5000);
   run(() => {
+    clearTimeout(reassureTimer);
     for (const b of buttons) b.disabled = false;
     loadingBtn.textContent = originalText;
   });
@@ -2919,15 +2928,24 @@ function maybeShowInterstitial(onDone) {
  * simply not running on Yandex at all (local dev — without it these
  * buttons would be untestable outside the platform, and handing out the
  * reward for free off-platform is harmless), a real SDK onClose (the ad
- * didn't show — e.g. no fill: their own callback log showed
- * `AdvAdvManager callOnAdvClose false` a few seconds after requesting an
- * ad with nothing to serve), and — only as a last-resort safety net — a
- * 60s timeout for the case where the platform doesn't call back at all
- * (observed once with a loaded-but-standalone SDK in testing). Listening
- * to onClose matters: without it, "no ad available" only ever recovered
- * via that 60s timeout, which from a player who didn't wait a full minute
- * looked exactly like "ad played, then nothing happens" — the actual bug
- * report that led to this fix.
+ * didn't show — e.g. no fill), and — only as a last-resort safety net — a
+ * timeout for the case where the platform doesn't call back at all.
+ *
+ * That last case is confirmed to actually happen, not hypothetical: a
+ * captured [Ads] log showed the SDK's *own internal* event bus logging
+ * `rewarded-video-callback-rewarded` / `rewarded-video-callback-close`
+ * after the player fully watched a fallback "promo" ad (the in-house ad
+ * Yandex substitutes when the primary network has no fill — the normal
+ * case for a brand new, not-yet-approved game) — but neither event ever
+ * reached the onRewarded/onClose handlers registered below. Only the
+ * timeout eventually recovered. So this isn't a bug in this file: the
+ * request and the wait are both textbook-correct, the platform's own SDK
+ * just doesn't always deliver the callback for that specific
+ * no-fill-falls-back-to-promo path. Whether that also happens with real
+ * ad demand on the live, moderated game remains to be seen — worth
+ * re-checking after publish. Until/unless it turns out to be fixed on
+ * their end, the timeout is kept short (20s, not 60s) specifically so a
+ * repeat of this never reads as "nothing happens" for more than that.
  */
 function showRewardedVideo(onRewarded, onUnavailable) {
   try {
@@ -2951,7 +2969,7 @@ function showRewardedVideo(onRewarded, onUnavailable) {
       done = true;
       onRewarded();
     };
-    const timeoutId = setTimeout(() => finishUnavailable("timeout-60s"), 60000);
+    const timeoutId = setTimeout(() => finishUnavailable("timeout-20s"), 20000);
     console.log("[Ads] showRewardedVideo: calling adv.showRewardedVideo now");
     adv.showRewardedVideo({
       onOpen: () => console.log("[Ads] showRewardedVideo: onOpen"),
