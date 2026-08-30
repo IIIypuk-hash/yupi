@@ -258,6 +258,38 @@ canvas {
   transform: none;
 }
 
+.lang-switch {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+.lang-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  background: rgba(184, 194, 208, 0.06);
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.lang-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.lang-btn.active {
+  border-color: var(--accent2);
+  background: rgba(226, 53, 44, 0.18);
+  color: var(--text);
+}
+
 .btn-ad {
   border-color: #fde68a;
   background: rgba(245, 158, 11, 0.12);

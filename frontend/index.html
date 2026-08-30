@@ -6,8 +6,13 @@
        scroll/swipe-to-refresh, and pinch-zoom on the game field causes the
        same kind of layout escape. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Space Fighter</title>
-  <meta name="description" content="Орбитальный Шторм — бесплатный аркадный космический шутер онлайн: волны врагов, 5 видов оружия, боссы с уникальными атаками, рывок и суперудары. Играйте в браузере." />
+  <!-- Название и описание ниже должны СЛОВО В СЛОВО совпадать с полями
+       [ru]/[en] в карточке черновика на games.yandex.ru (требование 5.1.3) —
+       actual startup values are re-applied by applyStaticI18n() in game.js
+       from the STATIC_I18N dictionary below, this tag is just the no-JS
+       fallback / initial paint. -->
+  <title>Звездные войны.Прорыв</title>
+  <meta name="description" content="Звездные войны.Прорыв — бесплатный аркадный космический шутер онлайн: волны врагов, 5 видов оружия, боссы с уникальными атаками, рывок и суперудары. Играйте в браузере." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -58,18 +63,35 @@
   <script>
     window.ysdk = null;
     // Req. 2.14: language must be read from the SDK at launch (not
-    // mid-gameplay). The game only actually has Russian text right now, so
-    // every detected language currently falls back to "ru" — that's an
-    // explicitly allowed minimum per Yandex's own docs for single-language
-    // games. What matters for compliance is that we DO read
-    // environment.i18n.lang at startup and apply it, rather than never
-    // touching it at all.
-    var SUPPORTED_LANGS = ["ru"];
+    // mid-gameplay) — this still happens unconditionally below via
+    // sdk.environment.i18n.lang, on every load. The game now has a real
+    // RU/EN translation (see STATIC_I18N / DYNAMIC_I18N_EN in game.js), so
+    // both are legitimate targets instead of ru being the only option.
+    //
+    // On top of that, the player can manually switch language from the
+    // start screen (game.js' setLang()), and that choice is remembered in
+    // localStorage. If present, it takes priority over the SDK-detected
+    // value below — but note this does NOT skip reading the SDK language:
+    // we still read and would apply it, we just let an explicit past user
+    // choice win over the platform's guess. That keeps the "read at launch,
+    // not mid-game" requirement intact while still respecting the player.
+    var SUPPORTED_LANGS = ["ru", "en"];
     var RESERVE_LANG = "ru";
     window.gameLang = RESERVE_LANG;
     function applyLang(lang) {
-      window.gameLang = SUPPORTED_LANGS.indexOf(lang) !== -1 ? lang : RESERVE_LANG;
-      document.documentElement.lang = window.gameLang;
+      var resolved = SUPPORTED_LANGS.indexOf(lang) !== -1 ? lang : RESERVE_LANG;
+      try {
+        var stored = localStorage.getItem("lang");
+        if (SUPPORTED_LANGS.indexOf(stored) !== -1) resolved = stored;
+      } catch (err) {
+        /* private-mode / storage disabled — ignore, SDK value stands */
+      }
+      window.gameLang = resolved;
+      document.documentElement.lang = resolved;
+      // game.js (loaded at the end of <body>) defines this synchronously on
+      // parse; by the time this fires (after the async /sdk.js request
+      // resolves) it is always already present.
+      if (window.applyStaticI18n) window.applyStaticI18n(resolved);
     }
     function initSDKFallback() {
       applyLang(RESERVE_LANG);
@@ -109,67 +131,76 @@
         <div class="bar hp-bar"><div id="hp-fill" class="bar-fill"></div></div>
       </div>
       <div class="hud-row" id="ult-bar-wrap">
-        <div class="bar-label ult-label" id="ult-label">УЛЬТ</div>
+        <!-- textContent is overwritten every frame by updateHud() (toggles
+             between the translated "ULT" label and "E!"); this is just the
+             pre-JS fallback. -->
+        <div class="bar-label ult-label" id="ult-label" data-i18n="ultLabel">УЛЬТ</div>
         <div class="bar ult-bar"><div id="ult-fill" class="bar-fill"></div></div>
       </div>
       <div class="hud-row" id="boss-hud" hidden>
-        <div class="bar-label boss-label" id="boss-name">БОСС</div>
+        <div class="bar-label boss-label" id="boss-name" data-i18n="bossLabel">БОСС</div>
         <div class="bar boss-bar"><div id="boss-fill" class="bar-fill"></div></div>
       </div>
       <div class="hud-right">
-        <div>Счёт: <span id="score">0</span> <span id="combo-mult" class="combo-mult"></span></div>
-        <div>Волна: <span id="wave">1</span></div>
-        <div>Оружие: <span id="weapon-name">Пушка</span> Ур.<span id="weapon-lvl">1</span></div>
+        <div><span data-i18n="hudScore">Счёт:</span> <span id="score">0</span> <span id="combo-mult" class="combo-mult"></span></div>
+        <div><span data-i18n="hudWave">Волна:</span> <span id="wave">1</span></div>
+        <div><span data-i18n="hudWeapon">Оружие:</span> <span id="weapon-name">Пушка</span> <span data-i18n="hudLvl">Ур.</span><span id="weapon-lvl">1</span></div>
       </div>
     </div>
 
     <!-- Стартовый экран -->
     <div id="start-screen" class="overlay">
-      <h1>SPACE FIGHTER</h1>
-      <p>Уничтожайте врагов (среди них — щитоносцы и камикадзе), собирайте оружие и дронов-спутников, стреляйте по астероидам ради бонусов и одолейте босса каждую 5-ю волну.
-      У каждого босса — своя сверхатака с предупреждением и фаза ярости на половине HP: у одного лазеры пробивают карту насквозь, а имперский звёздный разрушитель ловит вас тяговым лучом и обстреливает орбитальными турболазерами. Шкала УЛЬТ копится сама и даёт мощный суперудар. Убивайте без урона — множитель очков растёт.</p>
-      <p id="highscore-line">Рекорд: <span id="highscore-value">0</span></p>
-      <div class="controls-hint">
-        <div class="kb-only"><b>Стрелки / WASD</b> — движение</div>
-        <div class="kb-only"><b>Пробел</b> — стрельба</div>
-        <div class="kb-only"><b>1-5</b> — пушка / лазер / ракеты / молния / мины (нужно сначала подобрать)</div>
-        <div class="kb-only"><b>E</b> — суперудар, когда шкала УЛЬТ полна</div>
-        <div class="kb-only"><b>Shift</b> — рывок с неуязвимостью (разрывает тяговый луч)</div>
-        <div class="kb-only"><b>P</b> — пауза, <b>M</b> — звук вкл/выкл</div>
-        <div class="touch-only"><b>Джойстик слева</b> — движение</div>
-        <div class="touch-only"><b>●</b> справа — стрельба, цифры — оружие</div>
-        <div class="touch-only"><b>⇒</b> — рывок, <b>★</b> — суперудар</div>
+      <!-- Req. 2.14 / player-facing choice: switches STATIC_I18N +
+           DYNAMIC_I18N_EN via game.js' setLang(), persisted to localStorage. -->
+      <div class="lang-switch" id="lang-switch">
+        <button type="button" class="lang-btn" id="lang-ru-btn" data-i18n="langRuBtn">RU</button>
+        <button type="button" class="lang-btn" id="lang-en-btn" data-i18n="langEnBtn">EN</button>
       </div>
-      <button id="start-btn" class="btn">Начать игру</button>
+      <h1 data-i18n="startTitle">Звездные войны.Прорыв</h1>
+      <p data-i18n="startDesc">Уничтожайте врагов (среди них — щитоносцы и камикадзе), собирайте оружие и дронов-спутников, стреляйте по астероидам ради бонусов и одолейте босса каждую 5-ю волну.
+      У каждого босса — своя сверхатака с предупреждением и фаза ярости на половине HP: у одного лазеры пробивают карту насквозь, а имперский звёздный разрушитель ловит вас тяговым лучом и обстреливает орбитальными турболазерами. Шкала УЛЬТ копится сама и даёт мощный суперудар. Убивайте без урона — множитель очков растёт.</p>
+      <p id="highscore-line"><span data-i18n="highscoreLabel">Рекорд:</span> <span id="highscore-value">0</span></p>
+      <div class="controls-hint">
+        <div class="kb-only" data-i18n-html="ctrlMove"><b>Стрелки / WASD</b> — движение</div>
+        <div class="kb-only" data-i18n-html="ctrlFire"><b>Пробел</b> — стрельба</div>
+        <div class="kb-only" data-i18n-html="ctrlWeapons"><b>1-5</b> — пушка / лазер / ракеты / молния / мины (нужно сначала подобрать)</div>
+        <div class="kb-only" data-i18n-html="ctrlUlt"><b>E</b> — суперудар, когда шкала УЛЬТ полна</div>
+        <div class="kb-only" data-i18n-html="ctrlDash"><b>Shift</b> — рывок с неуязвимостью (разрывает тяговый луч)</div>
+        <div class="kb-only" data-i18n-html="ctrlPauseMute"><b>P</b> — пауза, <b>M</b> — звук вкл/выкл</div>
+        <div class="touch-only" data-i18n-html="ctrlTouchMove"><b>Джойстик слева</b> — движение</div>
+        <div class="touch-only" data-i18n-html="ctrlTouchFire"><b>●</b> справа — стрельба, цифры — оружие</div>
+        <div class="touch-only" data-i18n-html="ctrlTouchDashUlt"><b>⇒</b> — рывок, <b>★</b> — суперудар</div>
+      </div>
+      <button id="start-btn" class="btn" data-i18n="startBtn">Начать игру</button>
     </div>
 
     <!-- Пауза -->
     <div id="pause-screen" class="overlay" hidden>
-      <h1>ПАУЗА</h1>
-      <button id="resume-btn" class="btn">Продолжить</button>
-      <button id="ult-ad-btn" class="btn btn-ad">📺 Реклама → полный УЛЬТ</button>
-      <button id="extra-life-ad-btn" class="btn btn-ad">📺 Реклама → доп. жизнь</button>
+      <h1 data-i18n="pauseTitle">ПАУЗА</h1>
+      <button id="resume-btn" class="btn" data-i18n="resumeBtn">Продолжить</button>
+      <button id="ult-ad-btn" class="btn btn-ad" data-i18n="ultAdBtn">📺 Реклама → полный УЛЬТ</button>
+      <button id="extra-life-ad-btn" class="btn btn-ad" data-i18n="extraLifeAdBtn">📺 Реклама → доп. жизнь</button>
     </div>
 
     <!-- Game over -->
     <div id="gameover-screen" class="overlay" hidden>
-      <h1>КОРАБЛЬ УНИЧТОЖЕН</h1>
-      <p>Счёт: <span id="final-score">0</span></p>
-      <p id="gameover-record" class="record-badge" hidden>🏆 НОВЫЙ РЕКОРД!</p>
+      <h1 data-i18n="gameoverTitle">КОРАБЛЬ УНИЧТОЖЕН</h1>
+      <p><span data-i18n="scoreLabel">Счёт:</span> <span id="final-score">0</span></p>
+      <p id="gameover-record" class="record-badge" hidden data-i18n="recordBadge">🏆 НОВЫЙ РЕКОРД!</p>
       <!-- Only shown if the player already earned an extra life earlier via
            extra-life-ad-btn — no ad is requested here, it was already
            watched before the death happened (req. 4.5.2: the reward must
            not gate the ability to continue at the point of failure). -->
-      <button id="use-extra-life-btn" class="btn btn-ad">❤️ Воскреснуть (доп. жизнь)</button>
-      <button id="restart-btn" class="btn">Заново</button>
+      <button id="use-extra-life-btn" class="btn btn-ad" data-i18n="useExtraLifeBtn">❤️ Воскреснуть (доп. жизнь)</button>
+      <button id="restart-btn" class="btn" data-i18n="restartBtn">Заново</button>
     </div>
 
     <!-- Победа -->
     <div id="win-screen" class="overlay" hidden>
-      <h1>БОСС ПОВЕРЖЕН!</h1>
-      <p>Счёт: <span id="win-score">0</span></p>
-      <p id="win-record" class="record-badge" hidden>🏆 НОВЫЙ РЕКОРД!</p>
-      <button id="next-level-btn" class="btn">Следующая волна</button>
+      <h1 data-i18n="winTitle">БОСС ПОВЕРЖЕН!</h1>
+      <p><span data-i18n="scoreLabel">Счёт:</span> <span id="win-score">0</span></p>
+      <p id="win-record" class="record-badge" hidden data-i18n="recordBadge">🏆 НОВЫЙ РЕКОРД!</p>
+      <button id="next-level-btn" class="btn" data-i18n="nextLevelBtn">Следующая волна</button>
     </div>
 
     <!-- Сенсорное управление (мобильные) -->

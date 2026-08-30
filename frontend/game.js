@@ -49,7 +49,210 @@ const el = {
   touchUltBtn: document.getElementById("touch-ult-btn"),
   touchPauseBtn: document.getElementById("touch-pause-btn"),
   touchWeaponBtns: Array.from(document.querySelectorAll(".touch-weapon-btn")),
+  langRuBtn: document.getElementById("lang-ru-btn"),
+  langEnBtn: document.getElementById("lang-en-btn"),
 };
+
+/* ============================== i18n ============================== */
+// Req. 5.1.3: the name shown in-game must match the [ru]/[en] name fields
+// in the Yandex draft, character for character. Req. 8.2.3: every
+// locale-dependent field (including store screenshots) must actually be in
+// that locale — so once "en" exists as a real UI language here, retake the
+// English store screenshots against it.
+//
+// Two tables, on purpose:
+// - STATIC_I18N drives every DOM node in index.html via [data-i18n] /
+//   [data-i18n-html] (see applyStaticI18n below) — one key per UI string.
+// - DYNAMIC_I18N_EN is a flat RU-source -> EN translation map used by tr()
+//   at the handful of call sites that render text generated at runtime
+//   (weapon/boss/ultimate names, flash() banners, ad-button labels). Using
+//   the existing RU strings as keys means WEAPON_DEFS/BOSS_TYPES/
+//   ULTIMATE_DEFS below stay completely untouched — only the display call
+//   sites get wrapped in tr(), which is far lower-risk than restructuring
+//   data objects that gameplay code also reads.
+const STATIC_I18N = {
+  ru: {
+    docTitle: "Звездные войны.Прорыв",
+    metaDescription:
+      "Звездные войны.Прорыв — бесплатный аркадный космический шутер онлайн: волны врагов, 5 видов оружия, боссы с уникальными атаками, рывок и суперудары. Играйте в браузере.",
+    langRuBtn: "RU",
+    langEnBtn: "EN",
+    startTitle: "Звездные войны.Прорыв",
+    startDesc:
+      "Уничтожайте врагов (среди них — щитоносцы и камикадзе), собирайте оружие и дронов-спутников, стреляйте по астероидам ради бонусов и одолейте босса каждую 5-ю волну. У каждого босса — своя сверхатака с предупреждением и фаза ярости на половине HP: у одного лазеры пробивают карту насквозь, а имперский звёздный разрушитель ловит вас тяговым лучом и обстреливает орбитальными турболазерами. Шкала УЛЬТ копится сама и даёт мощный суперудар. Убивайте без урона — множитель очков растёт.",
+    highscoreLabel: "Рекорд:",
+    ctrlMove: "<b>Стрелки / WASD</b> — движение",
+    ctrlFire: "<b>Пробел</b> — стрельба",
+    ctrlWeapons: "<b>1-5</b> — пушка / лазер / ракеты / молния / мины (нужно сначала подобрать)",
+    ctrlUlt: "<b>E</b> — суперудар, когда шкала УЛЬТ полна",
+    ctrlDash: "<b>Shift</b> — рывок с неуязвимостью (разрывает тяговый луч)",
+    ctrlPauseMute: "<b>P</b> — пауза, <b>M</b> — звук вкл/выкл",
+    ctrlTouchMove: "<b>Джойстик слева</b> — движение",
+    ctrlTouchFire: "<b>●</b> справа — стрельба, цифры — оружие",
+    ctrlTouchDashUlt: "<b>⇒</b> — рывок, <b>★</b> — суперудар",
+    startBtn: "Начать игру",
+    pauseTitle: "ПАУЗА",
+    resumeBtn: "Продолжить",
+    ultAdBtn: "📺 Реклама → полный УЛЬТ",
+    extraLifeAdBtn: "📺 Реклама → доп. жизнь",
+    gameoverTitle: "КОРАБЛЬ УНИЧТОЖЕН",
+    scoreLabel: "Счёт:",
+    recordBadge: "🏆 НОВЫЙ РЕКОРД!",
+    useExtraLifeBtn: "❤️ Воскреснуть (доп. жизнь)",
+    restartBtn: "Заново",
+    winTitle: "БОСС ПОВЕРЖЕН!",
+    nextLevelBtn: "Следующая волна",
+    ultLabel: "УЛЬТ",
+    bossLabel: "БОСС",
+    hudScore: "Счёт:",
+    hudWave: "Волна:",
+    hudWeapon: "Оружие:",
+    hudLvl: "Ур.",
+  },
+  en: {
+    // NOTE: verify this literally matches the [en] "Название игры" field in
+    // the Yandex draft before resubmitting — if the console field is worded
+    // even slightly differently, req. 5.1.3 will flag it again.
+    docTitle: "Star Wars. Breakthrough",
+    metaDescription:
+      "Star Wars. Breakthrough — a free arcade space shooter in your browser: waves of enemies, 5 weapon types, bosses with unique attacks, a dash and ultimate strikes.",
+    langRuBtn: "RU",
+    langEnBtn: "EN",
+    startTitle: "Star Wars. Breakthrough",
+    startDesc:
+      "Destroy enemies (including shielded ones and kamikazes), pick up weapons and support drones, shoot asteroids for bonus drops, and take down a boss every 5th wave. Each boss has its own telegraphed ultimate attack and a rage phase at half HP: one fires lasers clean across the map, while the Imperial Star Destroyer catches you in a tractor beam and pounds you with orbital turbolasers. The ULT gauge fills on its own and unleashes a powerful super strike. Kill without taking damage to grow your score multiplier.",
+    highscoreLabel: "Best:",
+    ctrlMove: "<b>Arrows / WASD</b> — move",
+    ctrlFire: "<b>Space</b> — fire",
+    ctrlWeapons: "<b>1-5</b> — cannon / laser / missiles / lightning / mines (must be picked up first)",
+    ctrlUlt: "<b>E</b> — ultimate strike, once the ULT gauge is full",
+    ctrlDash: "<b>Shift</b> — invulnerable dash (breaks a tractor beam)",
+    ctrlPauseMute: "<b>P</b> — pause, <b>M</b> — sound on/off",
+    ctrlTouchMove: "<b>Left joystick</b> — move",
+    ctrlTouchFire: "<b>●</b> right — fire, numbers — weapons",
+    ctrlTouchDashUlt: "<b>⇒</b> — dash, <b>★</b> — ultimate strike",
+    startBtn: "Start Game",
+    pauseTitle: "PAUSED",
+    resumeBtn: "Resume",
+    ultAdBtn: "📺 Ad → full ULT charge",
+    extraLifeAdBtn: "📺 Ad → extra life",
+    gameoverTitle: "SHIP DESTROYED",
+    scoreLabel: "Score:",
+    recordBadge: "🏆 NEW RECORD!",
+    useExtraLifeBtn: "❤️ Revive (extra life)",
+    restartBtn: "Restart",
+    winTitle: "BOSS DEFEATED!",
+    nextLevelBtn: "Next Wave",
+    ultLabel: "ULT",
+    bossLabel: "BOSS",
+    hudScore: "Score:",
+    hudWave: "Wave:",
+    hudWeapon: "Weapon:",
+    hudLvl: "Lv.",
+  },
+};
+
+const DYNAMIC_I18N_EN = {
+  "Пушка": "Cannon",
+  "Лазер": "Laser",
+  "Ракеты": "Missiles",
+  "Молния": "Lightning",
+  "Мины": "Mines",
+  "УЛУЧШЕНО": "UPGRADED",
+  "ОРУЖИЕ НЕ НАЙДЕНО": "WEAPON NOT FOUND",
+  "ТЯГОВЫЙ ЛУЧ ЗАХВАТИЛ ВАС": "TRACTOR BEAM CAUGHT YOU",
+  "ДРЕДНОУТ": "DREADNOUGHT",
+  "ОРБИТАЛЬНЫЙ УДАР": "ORBITAL STRIKE",
+  "УЛЕЙ": "HIVE",
+  "ПРОБУЖДЕНИЕ РОЯ": "SWARM AWAKENING",
+  "КРЕЙСЕР": "CRUISER",
+  "РАКЕТНЫЙ ШКВАЛ": "MISSILE BARRAGE",
+  "СТРАЖ": "SENTINEL",
+  "ПРОБОЙ РЕАЛЬНОСТИ": "REALITY BREACH",
+  "ИМПЕРСКИЙ ЗВЁЗДНЫЙ РАЗРУШИТЕЛЬ": "IMPERIAL STAR DESTROYER",
+  "ОРБИТАЛЬНАЯ БОМБАРДИРОВКА": "ORBITAL BOMBARDMENT",
+  "БОСС": "BOSS",
+  "УЛЬТ": "ULT",
+  "ВОЛНА": "WAVE",
+  "ПОЛУЧЕНО": "ACQUIRED",
+  "ПРОЙДЕНА": "CLEARED",
+  "⚡ ЯРОСТЬ БОССА ⚡": "⚡ BOSS RAGE ⚡",
+  "+50 (МАКС. УРОВЕНЬ)": "+50 (MAX LEVEL)",
+  "ДРОН ПОДКЛЮЧЁН": "DRONE ATTACHED",
+  "+50 (ДРОНЫ МАКС.)": "+50 (DRONES MAXED)",
+  "ЩИТ АКТИВЕН": "SHIELD ACTIVE",
+  "СКОРОСТРЕЛЬНОСТЬ": "RAPID FIRE",
+  "ОРБИТАЛЬНЫЙ ШТОРМ": "ORBITAL STORM",
+  "ЛУЧ СУДНОГО ДНЯ": "DOOMSDAY BEAM",
+  "РАКЕТНЫЙ АД": "MISSILE HELL",
+  "ГРОЗОВОЙ РАЗРЯД": "STORM DISCHARGE",
+  "КОВРОВОЕ ЗАМИНИРОВАНИЕ": "CARPET MINING",
+  "ВЫРВАЛИСЬ ИЗ ЛУЧА": "BROKE FREE OF THE BEAM",
+  "СУПЕРУДАР ГОТОВ — [E]": "ULTIMATE READY — [E]",
+  "БОСС ПРИБЛИЖАЕТСЯ": "BOSS APPROACHING",
+  "ЗВУК ВЫКЛ": "SOUND OFF",
+  "ЗВУК ВКЛ": "SOUND ON",
+  "Загрузка рекламы…": "Loading ad…",
+  " (ещё немного)": " (a bit more)",
+  "ДОП. ЖИЗНЬ ПОЛУЧЕНА!": "EXTRA LIFE GRANTED!",
+  "УЛЬТ ЗАРЯЖЕН!": "ULT CHARGED!",
+};
+
+/** Translates a runtime-generated RU string to EN when window.gameLang is
+ * "en"; returns the string unchanged for ru (or for any string missing from
+ * the map, which just means "no translation needed" — e.g. plain numbers). */
+function tr(text) {
+  return window.gameLang === "en" && DYNAMIC_I18N_EN[text] ? DYNAMIC_I18N_EN[text] : text;
+}
+
+/** Re-applies every [data-i18n]/[data-i18n-html] node in the DOM, plus
+ * <title>/<meta name="description">, for `lang`. Called once at boot (see
+ * bottom of this file) and again whenever the language changes — either the
+ * SDK-detected value resolving late (index.html's applyLang) or the player
+ * clicking a lang-switch button (setLang below). */
+function applyStaticI18n(lang) {
+  const dict = STATIC_I18N[lang] || STATIC_I18N.ru;
+  document.title = dict.docTitle;
+  const metaDesc = document.querySelector('meta[name="description"]');
+  if (metaDesc) metaDesc.setAttribute("content", dict.metaDescription);
+  for (const node of document.querySelectorAll("[data-i18n]")) {
+    const key = node.getAttribute("data-i18n");
+    if (dict[key] != null) node.textContent = dict[key];
+  }
+  for (const node of document.querySelectorAll("[data-i18n-html]")) {
+    const key = node.getAttribute("data-i18n-html");
+    if (dict[key] != null) node.innerHTML = dict[key];
+  }
+  if (el.langRuBtn) el.langRuBtn.classList.toggle("active", lang === "ru");
+  if (el.langEnBtn) el.langEnBtn.classList.toggle("active", lang === "en");
+}
+window.applyStaticI18n = applyStaticI18n;
+
+/** Player-initiated language switch (lang-switch buttons on the start
+ * screen). Persists to localStorage so index.html's applyLang() picks it up
+ * ahead of the SDK-detected value on the next load too. */
+function setLang(lang) {
+  if (lang !== "ru" && lang !== "en") return;
+  window.gameLang = lang;
+  document.documentElement.lang = lang;
+  try {
+    localStorage.setItem("lang", lang);
+  } catch (err) {
+    /* private mode / storage disabled — the choice just won't persist */
+  }
+  applyStaticI18n(lang);
+  if (player) updateHud(); // refresh already-visible dynamic HUD text
+}
+if (el.langRuBtn) el.langRuBtn.addEventListener("click", () => setLang("ru"));
+if (el.langEnBtn) el.langEnBtn.addEventListener("click", () => setLang("en"));
+
+// Boot-time paint: apply whatever language is already resolved (a stored
+// player preference, or the "ru" default index.html set synchronously)
+// immediately, without waiting on the async SDK detection in index.html —
+// that will call applyStaticI18n again itself once sdk.environment.i18n.lang
+// resolves (or fails to), converging on the same value via the same
+// stored-preference check.
+applyStaticI18n(window.gameLang || "ru");
 
 /** @type {"start"|"playing"|"paused"|"gameover"|"win"} */
 let state = "start";
@@ -515,7 +718,7 @@ function startWave() {
   el.bossHud.hidden = true;
   setMusicTension(false);
   flash(
-    isBossWave(wave) ? `ВОЛНА ${wave} — БОСС!` : `ВОЛНА ${wave}`,
+    isBossWave(wave) ? `${tr("ВОЛНА")} ${wave} — ${tr("БОСС")}!` : `${tr("ВОЛНА")} ${wave}`,
     isBossWave(wave) ? "#ff3b5c" : "#4dd0ff"
   );
 }
@@ -1029,7 +1232,7 @@ function switchWeapon(numKey) {
   if (!key) return;
   const wp = player.weapons[key];
   if (!wp.owned) {
-    flash("ОРУЖИЕ НЕ НАЙДЕНО", "#8792b8", 700);
+    flash(tr("ОРУЖИЕ НЕ НАЙДЕНО"), "#8792b8", 700);
     return;
   }
   if (player.activeWeapon === key) return;
@@ -1345,7 +1548,7 @@ function launchFightersAttack(b) {
 
 function tractorBeamAttack() {
   player.tractorTimer = 1600;
-  flash("ТЯГОВЫЙ ЛУЧ ЗАХВАТИЛ ВАС", "#8b8f9e", 1200);
+  flash(tr("ТЯГОВЫЙ ЛУЧ ЗАХВАТИЛ ВАС"), "#8b8f9e", 1200);
   sfx.play("telegraph");
 }
 
@@ -1576,8 +1779,8 @@ function spawnBoss() {
     raged: false,
   };
   el.bossHud.hidden = false;
-  el.bossName.textContent = def.name;
-  flash(`БОСС: ${def.name}`, def.color, 2200);
+  el.bossName.textContent = tr(def.name);
+  flash(`${tr("БОСС")}: ${tr(def.name)}`, def.color, 2200);
   setMusicTension(true);
 }
 
@@ -1589,7 +1792,7 @@ function startTelegraph(b) {
     total: ms,
     data: def.prepareUltimate ? def.prepareUltimate(b) : null,
   };
-  flash(`⚠ ${def.ultimateName} ⚠`, b.color, ms);
+  flash(`⚠ ${tr(def.ultimateName)} ⚠`, b.color, ms);
   sfx.play("telegraph");
 }
 
@@ -1611,7 +1814,7 @@ function updateBoss(dt) {
     boss.raged = true;
     boss.speed *= 1.35;
     boss.cooldowns = boss.cooldowns.map((c) => c * 0.7);
-    flash("⚡ ЯРОСТЬ БОССА ⚡", "#ff3b5c", 1400);
+    flash(tr("⚡ ЯРОСТЬ БОССА ⚡"), "#ff3b5c", 1400);
     triggerScreenShake(10, 300);
     sfx.play("telegraph");
   }
@@ -1835,31 +2038,31 @@ function applyPowerup(type) {
     if (!wp.owned) {
       wp.owned = true;
       wp.level = 1;
-      flash(`ПОЛУЧЕНО: ${def.name.toUpperCase()}`, def.color, 1400);
+      flash(`${tr("ПОЛУЧЕНО")}: ${tr(def.name).toUpperCase()}`, def.color, 1400);
     } else if (wp.level < 3) {
       wp.level++;
-      flash(`${def.name.toUpperCase()} УЛУЧШЕНО (${wp.level})`, def.color, 1200);
+      flash(`${tr(def.name).toUpperCase()} ${tr("УЛУЧШЕНО")} (${wp.level})`, def.color, 1200);
     } else {
       score += 50;
-      flash("+50 (МАКС. УРОВЕНЬ)", def.color, 1000);
+      flash(tr("+50 (МАКС. УРОВЕНЬ)"), def.color, 1000);
     }
   } else if (type === "drone") {
     if (player.drones.length < 2) {
       player.drones.push({ side: player.drones.length === 0 ? -1 : 1, fireCooldown: 0 });
-      flash("ДРОН ПОДКЛЮЧЁН", "#9fb4ff", 1300);
+      flash(tr("ДРОН ПОДКЛЮЧЁН"), "#9fb4ff", 1300);
     } else {
       score += 50;
-      flash("+50 (ДРОНЫ МАКС.)", "#9fb4ff", 1000);
+      flash(tr("+50 (ДРОНЫ МАКС.)"), "#9fb4ff", 1000);
     }
   } else if (type === "heal") {
     player.hp = clamp(player.hp + 30, 0, player.maxHp);
     flash("+30 HP", "#34d399", 1000);
   } else if (type === "shield") {
     player.shieldTimer = 5000;
-    flash("ЩИТ АКТИВЕН", "#facc15", 1000);
+    flash(tr("ЩИТ АКТИВЕН"), "#facc15", 1000);
   } else if (type === "rapid") {
     player.rapidTimer = 8000;
-    flash("СКОРОСТРЕЛЬНОСТЬ", "#f472b6", 1000);
+    flash(tr("СКОРОСТРЕЛЬНОСТЬ"), "#f472b6", 1000);
   }
 }
 
@@ -1954,7 +2157,7 @@ function useUltimate() {
   player.ultimateCharge = 0;
   player.ultimateReadyFlashed = false;
   const def = ULTIMATE_DEFS[player.activeWeapon];
-  flash(`★ ${def.name} ★`, def.color, 1500);
+  flash(`★ ${tr(def.name)} ★`, def.color, 1500);
   triggerScreenShake(def.shake, 420);
   player.invulnTimer = Math.max(player.invulnTimer, 500);
   sfx.play("ultimate");
@@ -2009,7 +2212,7 @@ function tryDash() {
   player.invulnTimer = Math.max(player.invulnTimer, 220);
   if (player.tractorTimer > 0) {
     player.tractorTimer = 0;
-    flash("ВЫРВАЛИСЬ ИЗ ЛУЧА", "#9fb4ff", 900);
+    flash(tr("ВЫРВАЛИСЬ ИЗ ЛУЧА"), "#9fb4ff", 900);
   }
   sfx.play("dash");
 }
@@ -2070,7 +2273,7 @@ function updatePlayer(dt) {
   }
   if (player.ultimateCharge >= 100 && !player.ultimateReadyFlashed) {
     player.ultimateReadyFlashed = true;
-    flash("СУПЕРУДАР ГОТОВ — [E]", "#fde68a", 1300);
+    flash(tr("СУПЕРУДАР ГОТОВ — [E]"), "#fde68a", 1300);
   }
 
   if (player.fireCooldown > 0) player.fireCooldown -= dt;
@@ -2521,13 +2724,13 @@ function updateHud() {
     el.ultLabel.textContent = "E!";
   } else {
     el.ultBarWrap.classList.remove("ready");
-    el.ultLabel.textContent = "УЛЬТ";
+    el.ultLabel.textContent = tr("УЛЬТ");
   }
 
   el.score.textContent = score;
   el.comboMult.textContent = player.combo >= 3 ? `×${comboMultiplier(player.combo).toFixed(2)}` : "";
   el.wave.textContent = wave;
-  el.weaponName.textContent = WEAPON_DEFS[player.activeWeapon].name;
+  el.weaponName.textContent = tr(WEAPON_DEFS[player.activeWeapon].name);
   el.weaponLvl.textContent = player.weapons[player.activeWeapon].level;
   if (boss) {
     el.bossFill.style.width = `${clamp((boss.hp / boss.maxHp) * 100, 0, 100)}%`;
@@ -2578,12 +2781,12 @@ function loop(now) {
     if (!boss && enemiesToSpawn <= 0 && enemiesAlive <= 0 && !waveTransitioning) {
       waveTransitioning = true;
       if (isBossWave(wave)) {
-        flash("БОСС ПРИБЛИЖАЕТСЯ", "#ff3b5c", 1100);
+        flash(tr("БОСС ПРИБЛИЖАЕТСЯ"), "#ff3b5c", 1100);
         setTimeout(() => {
           if (state === "playing") spawnBoss();
         }, 1200);
       } else {
-        flash(`ВОЛНА ${wave} ПРОЙДЕНА`, "#34d399", 1300);
+        flash(`${tr("ВОЛНА")} ${wave} ${tr("ПРОЙДЕНА")}`, "#34d399", 1300);
         setTimeout(() => {
           if (state === "playing") advanceToNextWave();
         }, 1400);
@@ -2650,7 +2853,7 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "KeyM" || e.key.toLowerCase() === "m") {
     muted = !muted;
     setMusicMuted(muted);
-    flash(muted ? "ЗВУК ВЫКЛ" : "ЗВУК ВКЛ", "#8792b8", 700);
+    flash(tr(muted ? "ЗВУК ВЫКЛ" : "ЗВУК ВКЛ"), "#8792b8", 700);
   }
   if (state === "playing" && ["1", "2", "3", "4", "5"].includes(e.key)) {
     switchWeapon(e.key);
@@ -2818,7 +3021,7 @@ function withAdBusy(buttons, loadingBtn, loadingText, run) {
   // there that whole time reads as frozen. This nudges the text so it's
   // visibly still counting, not stuck.
   const reassureTimer = setTimeout(() => {
-    loadingBtn.textContent = loadingText + " (ещё немного)";
+    loadingBtn.textContent = loadingText + tr(" (ещё немного)");
   }, 5000);
   run(() => {
     clearTimeout(reassureTimer);
@@ -2833,7 +3036,7 @@ el.restartBtn.addEventListener("click", () => {
   // an interstitial here can't interrupt active gameplay. Both gameover
   // buttons are disabled together so the player can't hit "use extra life"
   // while this screen is about to be replaced anyway.
-  withAdBusy([el.restartBtn, el.useExtraLifeBtn], el.restartBtn, "Загрузка рекламы…", (restore) => {
+  withAdBusy([el.restartBtn, el.useExtraLifeBtn], el.restartBtn, tr("Загрузка рекламы…"), (restore) => {
     maybeShowInterstitial(() => {
       restore();
       el.gameoverScreen.hidden = true;
@@ -2847,7 +3050,7 @@ el.restartBtn.addEventListener("click", () => {
 
 el.nextLevelBtn.addEventListener("click", () => {
   // Natural break: state is already "win" (not "playing") after a boss kill.
-  withAdBusy([el.nextLevelBtn], el.nextLevelBtn, "Загрузка рекламы…", (restore) => {
+  withAdBusy([el.nextLevelBtn], el.nextLevelBtn, tr("Загрузка рекламы…"), (restore) => {
     maybeShowInterstitial(() => {
       restore();
       el.winScreen.hidden = true;
@@ -2870,12 +3073,12 @@ el.nextLevelBtn.addEventListener("click", () => {
 el.extraLifeAdBtn.addEventListener("click", () => {
   if (player.hasExtraLife) return;
   ensureAudio();
-  withAdBusy([el.extraLifeAdBtn], el.extraLifeAdBtn, "Загрузка рекламы…", (restore) => {
+  withAdBusy([el.extraLifeAdBtn], el.extraLifeAdBtn, tr("Загрузка рекламы…"), (restore) => {
     const grant = () => {
       restore();
       player.hasExtraLife = true;
       el.extraLifeAdBtn.hidden = true;
-      flash("ДОП. ЖИЗНЬ ПОЛУЧЕНА!", "#fde68a", 1200);
+      flash(tr("ДОП. ЖИЗНЬ ПОЛУЧЕНА!"), "#fde68a", 1200);
       sfx.play("powerup");
     };
     // onUnavailable === onRewarded on purpose, same reasoning as ultAdBtn
@@ -2903,11 +3106,11 @@ el.useExtraLifeBtn.addEventListener("click", () => {
 el.ultAdBtn.addEventListener("click", () => {
   if (player.ultimateCharge >= 100) return;
   ensureAudio();
-  withAdBusy([el.ultAdBtn], el.ultAdBtn, "Загрузка рекламы…", (restore) => {
+  withAdBusy([el.ultAdBtn], el.ultAdBtn, tr("Загрузка рекламы…"), (restore) => {
     const grant = () => {
       restore();
       player.ultimateCharge = 100;
-      flash("УЛЬТ ЗАРЯЖЕН!", "#fde68a", 1200);
+      flash(tr("УЛЬТ ЗАРЯЖЕН!"), "#fde68a", 1200);
       sfx.play("powerup");
     };
     showRewardedVideo(grant, grant);
